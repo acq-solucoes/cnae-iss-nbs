@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CNAE × ISS × NBS — ACQ Soluções Empresariais</title>
+<title>Classificador Fiscal — NCM * CNAE * ISS * NBS</title>
+  <meta name="description" content="Consulte CNAE, ISS (LC 116/2003), NBS, Simples Nacional, NCM, CEST, alíquotas federais e unidade de medida em uma só ferramenta. Gratuito e atualizado.">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -232,6 +233,35 @@ mark{background:rgba(0,196,154,0.22);color:var(--green-hi);border-radius:2px;pad
 .tab-dot{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 4px currentColor;}
 
 /* ── NCM SEARCH ── */
+.ncm-autocomplete{
+  position:absolute;
+  top:calc(100% + 4px);
+  left:0;
+  right:0;
+  background:var(--surface);
+  border:1px solid var(--violet);
+  border-radius:var(--radius);
+  box-shadow:0 8px 32px rgba(0,0,0,.5);
+  z-index:200;
+  overflow:hidden;
+  max-height:260px;
+  overflow-y:auto;
+}
+.ncm-autocomplete::-webkit-scrollbar{width:4px;}
+.ncm-autocomplete::-webkit-scrollbar-track{background:var(--surface2);}
+.ncm-autocomplete::-webkit-scrollbar-thumb{background:var(--border-hi);border-radius:2px;}
+.ncm-ac-item{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 14px;cursor:pointer;
+  border-bottom:1px solid var(--border);
+  transition:background .12s;
+}
+.ncm-ac-item:last-child{border-bottom:none;}
+.ncm-ac-item:hover,.ncm-ac-item.ac-active{background:var(--violet-dim);}
+.ncm-ac-code{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--violet-hi);white-space:nowrap;min-width:80px;}
+.ncm-ac-desc{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ncm-ac-unit{font-family:var(--mono);font-size:10px;color:var(--dim);white-space:nowrap;margin-left:auto;padding-left:8px;}
+.ncm-ac-hint{padding:8px 14px;font-size:11px;color:var(--dim);font-style:italic;}
 #ncm-section{display:none;}
 .ncm-label{display:block;font-family:var(--mono);font-size:11px;font-weight:600;color:var(--violet);letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px;}
 .ncm-hint{display:block;font-size:11px;color:var(--muted);margin-bottom:8px;font-style:italic;}
@@ -337,7 +367,7 @@ mark{background:rgba(0,196,154,0.22);color:var(--green-hi);border-radius:2px;pad
   <div id="ncm-section">
     <label class="ncm-label" for="ncm-q">Consulta NCM — Nomenclatura Comum do Mercosul</label>
     <span class="ncm-hint">Busca em tempo real via BrasilAPI · Digite o código de 8 dígitos ou palavras-chave</span>
-    <div class="ncm-search-row">
+    <div class="ncm-search-row" style="position:relative">
       <input type="text" id="ncm-q" class="ncm-input"
         placeholder="Ex: 01012100 — ou — calçados de couro..."
         autocomplete="off" spellcheck="false" maxlength="80">
@@ -346,6 +376,7 @@ mark{background:rgba(0,196,154,0.22);color:var(--green-hi);border-radius:2px;pad
         <button class="ncm-mode-btn" id="ncm-mode-text" onclick="setNcmMode('text')">Texto</button>
       </div>
       <button class="btn-clear" id="ncm-btn-clear" onclick="clearNcm()">Limpar</button>
+      <div id="ncm-autocomplete" class="ncm-autocomplete" style="display:none"></div>
     </div>
     <div class="ncm-status" id="ncm-status"></div>
     <div id="ncm-results"></div>
@@ -480,6 +511,553 @@ function switchTab(tab){
   if(!isCnae) document.getElementById('ncm-q').focus();
 }
 
+/* ─── CEST × NCM — Convênio ICMS 92/2015 e atualizações ─── */
+// Chave: NCM sem pontuação (8, 6 ou 4 dígitos como prefixo).
+// Valor: [{cest, segmento, descricao}]
+const CEST_MAP = {
+  /* ── Seg 01 · Autopeças ── */
+  "87141990":[{cest:"01.001.00",segmento:"Autopeças",descricao:"Câmaras de ar de borracha para motocicletas e ciclomotores"}],
+  "87149990":[{cest:"01.001.00",segmento:"Autopeças",descricao:"Partes e acessórios de motocicletas"}],
+  "87082910":[{cest:"01.037.00",segmento:"Autopeças",descricao:"Partes e acessórios de veículos - para-choques"}],
+  "87082990":[{cest:"01.038.00",segmento:"Autopeças",descricao:"Partes e acessórios - outros para-choques"}],
+  "87083100":[{cest:"01.041.00",segmento:"Autopeças",descricao:"Caixas de velocidades (câmbio) e suas partes"}],
+  "87084000":[{cest:"01.043.00",segmento:"Autopeças",descricao:"Caixas de transmissão / diferenciais e seus eixos"}],
+  "87085000":[{cest:"01.045.00",segmento:"Autopeças",descricao:"Eixos de transmissão com diferencial e suas partes"}],
+  "87086000":[{cest:"01.047.00",segmento:"Autopeças",descricao:"Freios e servofreios e suas partes"}],
+  "87087000":[{cest:"01.049.00",segmento:"Autopeças",descricao:"Rodas, suas partes e acessórios"}],
+  "87088000":[{cest:"01.051.00",segmento:"Autopeças",descricao:"Sistemas de suspensão e suas partes"}],
+  "87089100":[{cest:"01.053.00",segmento:"Autopeças",descricao:"Radiadores e suas partes"}],
+  "87089200":[{cest:"01.055.00",segmento:"Autopeças",descricao:"Silenciosos e tubos de escape"}],
+  "87089900":[{cest:"01.059.00",segmento:"Autopeças",descricao:"Outras partes e acessórios de veículos"}],
+  "85122000":[{cest:"01.093.00",segmento:"Autopeças",descricao:"Aparelhos de iluminação para veículos"}],
+  "85123000":[{cest:"01.095.00",segmento:"Autopeças",descricao:"Aparelhos de sinalização acústica para veículos"}],
+  "85124000":[{cest:"01.097.00",segmento:"Autopeças",descricao:"Limpadores de para-brisa, de antiembaçantes e degeladores"}],
+  "85129010":[{cest:"01.099.00",segmento:"Autopeças",descricao:"Partes de aparelhos elétricos de veículos"}],
+  "84091000":[{cest:"01.003.00",segmento:"Autopeças",descricao:"Partes para motores de aviação"}],
+  "84099100":[{cest:"01.005.00",segmento:"Autopeças",descricao:"Partes para motores de explosão (ciclo Otto)"}],
+  "84099900":[{cest:"01.007.00",segmento:"Autopeças",descricao:"Partes para outros motores de combustão interna"}],
+  "84132000":[{cest:"01.009.00",segmento:"Autopeças",descricao:"Bombas de mão para combustível e lubrificante"}],
+  "84133000":[{cest:"01.011.00",segmento:"Autopeças",descricao:"Bombas de combustível, lubrificante ou líquido de arrefecimento p/ motores"}],
+  "84139100":[{cest:"01.013.00",segmento:"Autopeças",descricao:"Partes de bombas de combustível/lubrificante"}],
+  "84145910":[{cest:"01.015.00",segmento:"Autopeças",descricao:"Ventiladores de uso automotivo"}],
+  "84213100":[{cest:"01.017.00",segmento:"Autopeças",descricao:"Filtros de entrada de ar para motores de explosão ou compressão"}],
+  "84213900":[{cest:"01.019.00",segmento:"Autopeças",descricao:"Outros filtros para motores"}],
+  "84529000":[{cest:"01.021.00",segmento:"Autopeças",descricao:"Partes de máquinas de costura para uso veicular"}],
+  "73211190":[{cest:"01.023.00",segmento:"Autopeças",descricao:"Outros aparelhos para queimar combustível líquido (uso veicular)"}],
+  "84833000":[{cest:"01.025.00",segmento:"Autopeças",descricao:"Virabrequins (eixos de manivelas) e seus mancais"}],
+  "84834000":[{cest:"01.027.00",segmento:"Autopeças",descricao:"Engrenagens e rodas de fricção; eixos de esferas ou de rolos"}],
+  "84836000":[{cest:"01.029.00",segmento:"Autopeças",descricao:"Embreagens e órgãos de acoplamento"}],
+  "84839000":[{cest:"01.031.00",segmento:"Autopeças",descricao:"Outras partes de transmissão"}],
+  "73181500":[{cest:"01.033.00",segmento:"Autopeças",descricao:"Parafusos, porcas, rebites e arruelas para uso automotivo"}],
+  "73182100":[{cest:"01.035.00",segmento:"Autopeças",descricao:"Arruelas de pressão e outras arruelas de travamento"}],
+  /* ── Seg 02 · Bebidas alcoólicas exceto cerveja ── */
+  "220410":[{cest:"02.001.00",segmento:"Bebidas Alcoólicas",descricao:"Vinhos de uvas frescas"}],
+  "220421":[{cest:"02.002.00",segmento:"Bebidas Alcoólicas",descricao:"Outros vinhos; mostos de uvas"}],
+  "220429":[{cest:"02.003.00",segmento:"Bebidas Alcoólicas",descricao:"Outros vinhos em recipientes > 2 litros"}],
+  "220430":[{cest:"02.004.00",segmento:"Bebidas Alcoólicas",descricao:"Outros mostos de uvas"}],
+  "2205":[{cest:"02.005.00",segmento:"Bebidas Alcoólicas",descricao:"Vermutes e outros vinhos aromatizados"}],
+  "2206":[{cest:"02.006.00",segmento:"Bebidas Alcoólicas",descricao:"Outras bebidas fermentadas (sidra, cidra etc.)"}],
+  "220820":[{cest:"02.007.00",segmento:"Bebidas Alcoólicas",descricao:"Aguardente de vinho ou de bagaço de uvas (conhaque, brandy etc.)"}],
+  "220830":[{cest:"02.008.00",segmento:"Bebidas Alcoólicas",descricao:"Uísques"}],
+  "220840":[{cest:"02.009.00",segmento:"Bebidas Alcoólicas",descricao:"Rum e outras aguardentes de cana"}],
+  "220850":[{cest:"02.010.00",segmento:"Bebidas Alcoólicas",descricao:"Gim e genebra"}],
+  "220860":[{cest:"02.011.00",segmento:"Bebidas Alcoólicas",descricao:"Vodca"}],
+  "220870":[{cest:"02.012.00",segmento:"Bebidas Alcoólicas",descricao:"Licores e cremes"}],
+  "220890":[{cest:"02.013.00",segmento:"Bebidas Alcoólicas",descricao:"Outras bebidas espirituosas"}],
+  "22071000":[{cest:"02.014.00",segmento:"Bebidas Alcoólicas",descricao:"Álcool etílico não desnaturado (teor ≥ 80%)"}],
+  "22072000":[{cest:"02.015.00",segmento:"Bebidas Alcoólicas",descricao:"Álcool etílico e aguardentes desnaturados de qualquer graduação"}],
+  "22082000":[{cest:"02.016.00",segmento:"Bebidas Alcoólicas",descricao:"Aguardente de frutas (pinga, cachaça, catuaba etc.)"}],
+  /* ── Seg 03 · Cervejas, refrigerantes, água ── */
+  "2201":[{cest:"03.001.00",segmento:"Cervejas e Bebidas",descricao:"Águas minerais, gaseificadas ou não e outras águas"}],
+  "2202":[{cest:"03.003.00",segmento:"Cervejas e Bebidas",descricao:"Refrigerantes, refrescos, néctares e outras bebidas não alcoólicas"}],
+  "2203":[{cest:"03.002.00",segmento:"Cervejas e Bebidas",descricao:"Cerveja de malte"}],
+  "22041000":[{cest:"03.005.00",segmento:"Cervejas e Bebidas",descricao:"Espumantes (champanhe)"}],
+  "22060010":[{cest:"03.006.00",segmento:"Cervejas e Bebidas",descricao:"Chope (cerveja não filtrada)"}],
+  "21069090":[{cest:"03.007.00",segmento:"Cervejas e Bebidas",descricao:"Concentrados e xaropes para fabricação de bebidas"}],
+  "22021000":[{cest:"03.004.00",segmento:"Cervejas e Bebidas",descricao:"Água com adição de açúcar ou edulcorante, aromatizada"}],
+  /* ── Seg 04 · Cigarros e fumo ── */
+  "2401":[{cest:"04.001.00",segmento:"Cigarros e Fumo",descricao:"Fumo não manufaturado; resíduos de fumo"}],
+  "2402":[{cest:"04.002.00",segmento:"Cigarros e Fumo",descricao:"Charutos, cigarrilhas e cigarros de fumo natural ou reconstituído"}],
+  "24021000":[{cest:"04.003.00",segmento:"Cigarros e Fumo",descricao:"Charutos e cigarrilhas contendo fumo"}],
+  "24022000":[{cest:"04.004.00",segmento:"Cigarros e Fumo",descricao:"Cigarros contendo fumo"}],
+  "2403":[{cest:"04.005.00",segmento:"Cigarros e Fumo",descricao:"Outros produtos de fumo manufaturados; tabaco reconstituído"}],
+  /* ── Seg 05 · Cimentos ── */
+  "2523":[{cest:"05.001.00",segmento:"Cimentos",descricao:"Cimentos hidráulicos (incluídos os clínqueres)"}],
+  "25231000":[{cest:"05.002.00",segmento:"Cimentos",descricao:"Clínqueres de cimento"}],
+  "25232100":[{cest:"05.003.00",segmento:"Cimentos",descricao:"Cimento Portland branco"}],
+  "25232900":[{cest:"05.004.00",segmento:"Cimentos",descricao:"Outros cimentos Portland"}],
+  "25233000":[{cest:"05.005.00",segmento:"Cimentos",descricao:"Cimento aluminoso"}],
+  "25239000":[{cest:"05.006.00",segmento:"Cimentos",descricao:"Outros cimentos hidráulicos"}],
+  /* ── Seg 06 · Combustíveis e lubrificantes ── */
+  "27101112":[{cest:"06.001.00",segmento:"Combustíveis",descricao:"Gasolina automotiva premium"}],
+  "27101113":[{cest:"06.002.00",segmento:"Combustíveis",descricao:"Gasolina automotiva comum"}],
+  "27101500":[{cest:"06.003.00",segmento:"Combustíveis",descricao:"Óleos médios (querosene de aviação etc.)"}],
+  "27101921":[{cest:"06.004.00",segmento:"Combustíveis",descricao:"Óleo diesel"}],
+  "27101922":[{cest:"06.005.00",segmento:"Combustíveis",descricao:"Óleo diesel marítimo"}],
+  "27102000":[{cest:"06.006.00",segmento:"Combustíveis",descricao:"Óleos de petróleo com indicadores (lubrificantes)"}],
+  "27111100":[{cest:"06.007.00",segmento:"Combustíveis",descricao:"Gás natural liquefeito (GNL)"}],
+  "27111200":[{cest:"06.008.00",segmento:"Combustíveis",descricao:"Propano liquefeito (GLP)"}],
+  "27111300":[{cest:"06.009.00",segmento:"Combustíveis",descricao:"Butano liquefeito (GLP)"}],
+  "27111900":[{cest:"06.010.00",segmento:"Combustíveis",descricao:"Outros gases de petróleo liquefeitos"}],
+  "27112100":[{cest:"06.011.00",segmento:"Combustíveis",descricao:"Gás natural no estado gasoso"}],
+  "27112900":[{cest:"06.012.00",segmento:"Combustíveis",descricao:"Outros gases de petróleo no estado gasoso"}],
+  "22071000":[{cest:"06.013.00",segmento:"Combustíveis",descricao:"Álcool etílico anidro combustível (AEAC)"}],
+  "22072000":[{cest:"06.014.00",segmento:"Combustíveis",descricao:"Álcool etílico hidratado combustível (AEHC)"}],
+  "38260000":[{cest:"06.015.00",segmento:"Combustíveis",descricao:"Biodiesel e suas misturas"}],
+  /* ── Seg 07 · Energia Elétrica ── */
+  "27160000":[{cest:"07.001.00",segmento:"Energia Elétrica",descricao:"Energia elétrica"}],
+  /* ── Seg 08 · Ferramentas ── */
+  "8201":[{cest:"08.001.00",segmento:"Ferramentas",descricao:"Ferramentas manuais agrícolas, hortícolas e florestais"}],
+  "8202":[{cest:"08.002.00",segmento:"Ferramentas",descricao:"Serras manuais; folhas de serras de todos os tipos"}],
+  "8203":[{cest:"08.003.00",segmento:"Ferramentas",descricao:"Limas, grosas, alicates, tenazes, pinças, cortadores, saca-bocados, chaves de porcas"}],
+  "8204":[{cest:"08.004.00",segmento:"Ferramentas",descricao:"Chaves de porcas de mão (incluídas as chaves dinamométricas)"}],
+  "8205":[{cest:"08.005.00",segmento:"Ferramentas",descricao:"Ferramentas manuais diversas"}],
+  "8206":[{cest:"08.006.00",segmento:"Ferramentas",descricao:"Ferramentas de pelo menos duas das posições 82.02 a 82.05"}],
+  "8207":[{cest:"08.007.00",segmento:"Ferramentas",descricao:"Ferramentas intercambiáveis para ferramentas manuais, máquinas-ferramentas ou perfuração"}],
+  "8208":[{cest:"08.008.00",segmento:"Ferramentas",descricao:"Facas e lâminas cortantes para máquinas ou aparelhos mecânicos"}],
+  "8209":[{cest:"08.009.00",segmento:"Ferramentas",descricao:"Plaquetas, varetas, pontas e objetos semelhantes para ferramentas"}],
+  "8211":[{cest:"08.010.00",segmento:"Ferramentas",descricao:"Facas de lâmina cortante ou serrilhada (incluídas as podadeiras)"}],
+  "8467":[{cest:"08.011.00",segmento:"Ferramentas",descricao:"Ferramentas pneumáticas, hidráulicas ou com motor não elétrico"}],
+  "8508":[{cest:"08.012.00",segmento:"Ferramentas",descricao:"Ferramentas eletromecânicas com motor elétrico incorporado"}],
+  "8539":[{cest:"08.013.00",segmento:"Ferramentas",descricao:"Lâmpadas elétricas — uso em ferramentas"}],
+  /* ── Seg 09 · Lâmpadas, reatores e starters ── */
+  "85391000":[{cest:"09.001.00",segmento:"Lâmpadas e Reatores",descricao:"Faróis e projetores em unidades seladas"}],
+  "85392100":[{cest:"09.002.00",segmento:"Lâmpadas e Reatores",descricao:"Lâmpadas e tubos de incandescência (tungstênio-halogênio)"}],
+  "85392200":[{cest:"09.003.00",segmento:"Lâmpadas e Reatores",descricao:"Outras lâmpadas e tubos de incandescência"}],
+  "85393100":[{cest:"09.004.00",segmento:"Lâmpadas e Reatores",descricao:"Lâmpadas e tubos fluorescentes (catodo quente)"}],
+  "85393200":[{cest:"09.005.00",segmento:"Lâmpadas e Reatores",descricao:"Lâmpadas de vapor de mercúrio ou sódio; lâmpadas de halogenetos metálicos"}],
+  "85394100":[{cest:"09.006.00",segmento:"Lâmpadas e Reatores",descricao:"Lâmpadas de arco"}],
+  "85395000":[{cest:"09.007.00",segmento:"Lâmpadas e Reatores",descricao:"Lâmpadas LED"}],
+  "85361000":[{cest:"09.008.00",segmento:"Lâmpadas e Reatores",descricao:"Fusíveis — starters e reatores para lâmpadas"}],
+  "85423190":[{cest:"09.009.00",segmento:"Lâmpadas e Reatores",descricao:"Reatores eletrônicos para lâmpadas fluorescentes"}],
+  /* ── Seg 10 · Materiais de construção ── */
+  "3925":[{cest:"10.001.00",segmento:"Mat. Construção",descricao:"Artefatos de plástico para construção"}],
+  "6910":[{cest:"10.002.00",segmento:"Mat. Construção",descricao:"Pias, banheiras, cubas, vasos sanitários e artigos cerâmicos para uso sanitário"}],
+  "7010":[{cest:"10.003.00",segmento:"Mat. Construção",descricao:"Garrafões, garrafas, frascos, embalagens de vidro"}],
+  "7308":[{cest:"10.004.00",segmento:"Mat. Construção",descricao:"Construções e suas partes de ferro fundido, ferro ou aço"}],
+  "7309":[{cest:"10.005.00",segmento:"Mat. Construção",descricao:"Reservatórios, cisternas e recipientes semelhantes de ferro, aço ou alumínio"}],
+  "7610":[{cest:"10.006.00",segmento:"Mat. Construção",descricao:"Construções de alumínio"}],
+  "6802":[{cest:"10.007.00",segmento:"Mat. Construção",descricao:"Pedras de cantaria ou de construção trabalhadas"}],
+  "6907":[{cest:"10.008.00",segmento:"Mat. Construção",descricao:"Ladrilhos e placas para pavimentação ou revestimento de cerâmica"}],
+  "6908":[{cest:"10.009.00",segmento:"Mat. Construção",descricao:"Ladrilhos e placas esmaltadas para pavimentação ou revestimento de cerâmica"}],
+  "7217":[{cest:"10.010.00",segmento:"Mat. Construção",descricao:"Fios de ferro ou aço não ligado"}],
+  "7312":[{cest:"10.011.00",segmento:"Mat. Construção",descricao:"Cordas, cabos, tranças e artigos semelhantes de ferro ou aço"}],
+  "7313":[{cest:"10.012.00",segmento:"Mat. Construção",descricao:"Arame farpado de ferro ou aço; arames ou tiras retorcidos p/ cercas"}],
+  "7314":[{cest:"10.013.00",segmento:"Mat. Construção",descricao:"Telas metálicas, grades e redes de ferro ou aço"}],
+  "7317":[{cest:"10.014.00",segmento:"Mat. Construção",descricao:"Pregos, percevejos, escápulas e artigos semelhantes de ferro fundido, ferro ou aço"}],
+  "3921":[{cest:"10.015.00",segmento:"Mat. Construção",descricao:"Outras chapas, folhas, películas, tiras e lâminas de plástico"}],
+  "6810":[{cest:"10.016.00",segmento:"Mat. Construção",descricao:"Obras de cimento, concreto ou pedra artificial"}],
+  "6811":[{cest:"10.017.00",segmento:"Mat. Construção",descricao:"Obras de fibrocimento, de celulose-cimento e semelhantes"}],
+  "2517":[{cest:"10.018.00",segmento:"Mat. Construção",descricao:"Seixos, cascalho, areia, macadame e alcatrão"}],
+  "6809":[{cest:"10.019.00",segmento:"Mat. Construção",descricao:"Obras de gesso ou de composições à base de gesso"}],
+  "3917":[{cest:"10.020.00",segmento:"Mat. Construção",descricao:"Tubos e seus acessórios de plástico para construção"}],
+  "3918":[{cest:"10.021.00",segmento:"Mat. Construção",descricao:"Revestimentos de plástico para pavimentos, paredes e tetos"}],
+  "3922":[{cest:"10.022.00",segmento:"Mat. Construção",descricao:"Banheiras, chuveiros, cubas e artigos semelhantes de plástico"}],
+  "6905":[{cest:"10.023.00",segmento:"Mat. Construção",descricao:"Telhas, tijolos e outros artefatos de cerâmica para construção"}],
+  "6906":[{cest:"10.024.00",segmento:"Mat. Construção",descricao:"Tubos, calhas e acessórios de cerâmica"}],
+  "7305":[{cest:"10.025.00",segmento:"Mat. Construção",descricao:"Outros tubos (condutos) de ferro fundido, ferro ou aço"}],
+  "7306":[{cest:"10.026.00",segmento:"Mat. Construção",descricao:"Outros tubos, canos e perfis ocos de ferro ou aço"}],
+  "8484":[{cest:"10.027.00",segmento:"Mat. Construção",descricao:"Juntas e gaxetas de vedação para construção"}],
+  "3002":[{cest:"10.028.00",segmento:"Mat. Construção",descricao:"Argamassas prontas e preparações semelhantes"}],
+  "5703":[{cest:"10.029.00",segmento:"Mat. Construção",descricao:"Tapetes e passadeiras de matérias têxteis"}],
+  "5705":[{cest:"10.030.00",segmento:"Mat. Construção",descricao:"Outros tapetes e revestimentos para pavimentos de matérias têxteis"}],
+  /* ── Seg 11 · Materiais de limpeza ── */
+  "3401":[{cest:"11.001.00",segmento:"Mat. Limpeza",descricao:"Sabões; produtos e preparações orgânicos tensoativos usados como sabão"}],
+  "3402":[{cest:"11.002.00",segmento:"Mat. Limpeza",descricao:"Agentes orgânicos de superfície (exceto sabões); preparações tensoativas, de limpeza e de polimento"}],
+  "3405":[{cest:"11.003.00",segmento:"Mat. Limpeza",descricao:"Graxas e cremes para calçados, encáusticas, preparações p/ dar brilho"}],
+  "3406":[{cest:"11.004.00",segmento:"Mat. Limpeza",descricao:"Velas, pavios de cera e similares"}],
+  "34022000":[{cest:"11.005.00",segmento:"Mat. Limpeza",descricao:"Preparações para lavagem de roupa e amaciantes"}],
+  "3809":[{cest:"11.006.00",segmento:"Mat. Limpeza",descricao:"Agentes de apresto ou de acabamento para têxteis, papel etc."}],
+  "3824":[{cest:"11.007.00",segmento:"Mat. Limpeza",descricao:"Preparações e cargas para extintores de incêndio; preparações para fluidificar tintas"}],
+  /* ── Seg 12 · Materiais elétricos ── */
+  "8544":[{cest:"12.001.00",segmento:"Mat. Elétricos",descricao:"Fios, cabos e outros condutores isolados para usos elétricos"}],
+  "8536":[{cest:"12.002.00",segmento:"Mat. Elétricos",descricao:"Aparelhos para interrupção, seccionamento, proteção e ligação de circuitos elétricos"}],
+  "8537":[{cest:"12.003.00",segmento:"Mat. Elétricos",descricao:"Quadros, painéis, consoles, cabinas, armários e outros suportes para controle elétrico"}],
+  "8535":[{cest:"12.004.00",segmento:"Mat. Elétricos",descricao:"Aparelhos para interrupção, seccionamento, proteção de circuitos elétricos (≥ 1000 V)"}],
+  "8546":[{cest:"12.005.00",segmento:"Mat. Elétricos",descricao:"Isoladores elétricos de qualquer matéria"}],
+  "8547":[{cest:"12.006.00",segmento:"Mat. Elétricos",descricao:"Peças isolantes para máquinas, aparelhos e instalações elétricas"}],
+  "7318":[{cest:"12.007.00",segmento:"Mat. Elétricos",descricao:"Parafusos, porcas, arruelas e artigos semelhantes de uso elétrico"}],
+  "8301":[{cest:"12.008.00",segmento:"Mat. Elétricos",descricao:"Cadeados, fechaduras, ferrolhos de metal (uso elétrico)"}],
+  "8302":[{cest:"12.009.00",segmento:"Mat. Elétricos",descricao:"Guarnições, ferragens e artigos semelhantes para construção civil"}],
+  "7326":[{cest:"12.010.00",segmento:"Mat. Elétricos",descricao:"Outras obras de ferro ou aço — uso elétrico"}],
+  /* ── Seg 13 · Medicamentos ── */
+  "3001":[{cest:"13.001.00",segmento:"Medicamentos",descricao:"Glândulas e outros órgãos para usos opoterápicos; heparina e seus sais"}],
+  "3002":[{cest:"13.002.00",segmento:"Medicamentos",descricao:"Sangue humano; sangue animal; antisoros, vacinas e produtos semelhantes"}],
+  "3003":[{cest:"13.003.00",segmento:"Medicamentos",descricao:"Medicamentos (exceto produtos das posições 30.02, 30.05 ou 30.06) em doses"}],
+  "3004":[{cest:"13.004.00",segmento:"Medicamentos",descricao:"Medicamentos para uso humano ou veterinário — doses específicas"}],
+  "3005":[{cest:"13.005.00",segmento:"Medicamentos",descricao:"Pastas, gazes, ataduras e artigos semelhantes para curativos"}],
+  "3006":[{cest:"13.006.00",segmento:"Medicamentos",descricao:"Preparações e artigos farmacêuticos referidos na nota 4 do capítulo 30"}],
+  /* ── Seg 14 · Papéis, plásticos, cerâmicos e vidros ── */
+  "3919":[{cest:"14.001.00",segmento:"Papéis/Plásticos/Vidros",descricao:"Chapas, folhas, tiras e películas auto-adesivas de plástico"}],
+  "3920":[{cest:"14.002.00",segmento:"Papéis/Plásticos/Vidros",descricao:"Outras chapas, folhas, películas e tiras de polímeros de etileno"}],
+  "4811":[{cest:"14.003.00",segmento:"Papéis/Plásticos/Vidros",descricao:"Papel e cartão, revestidos, impregnados, cobertos"}],
+  "4818":[{cest:"14.004.00",segmento:"Papéis/Plásticos/Vidros",descricao:"Papel higiênico, lenços, guardanapos, fraldas e artigos semelhantes de uso doméstico ou higiênico"}],
+  "4819":[{cest:"14.005.00",segmento:"Papéis/Plásticos/Vidros",descricao:"Caixas, sacos, bolsas e outros recipientes de papel ou cartão"}],
+  "4820":[{cest:"14.006.00",segmento:"Papéis/Plásticos/Vidros",descricao:"Livros de registro e contabilidade, cadernos, blocos de notas, classificadores de papel"}],
+  "7007":[{cest:"14.007.00",segmento:"Papéis/Plásticos/Vidros",descricao:"Vidro de segurança (temperado ou laminado)"}],
+  "7013":[{cest:"14.008.00",segmento:"Papéis/Plásticos/Vidros",descricao:"Objetos de vidro para serviço de mesa, cozinha ou outros fins domésticos"}],
+  /* ── Seg 15 · Pneumáticos ── */
+  "40111000":[{cest:"15.001.00",segmento:"Pneumáticos",descricao:"Pneus novos de borracha — automóveis de passageiros (incl. veículos para transporte misto e de corrida)"}],
+  "40112000":[{cest:"15.002.00",segmento:"Pneumáticos",descricao:"Pneus novos de borracha — ônibus e caminhões"}],
+  "40113000":[{cest:"15.003.00",segmento:"Pneumáticos",descricao:"Pneus novos de borracha — aviões"}],
+  "40114000":[{cest:"15.004.00",segmento:"Pneumáticos",descricao:"Pneus novos de borracha — motocicletas"}],
+  "40115000":[{cest:"15.005.00",segmento:"Pneumáticos",descricao:"Pneus novos de borracha — bicicletas"}],
+  "40116100":[{cest:"15.006.00",segmento:"Pneumáticos",descricao:"Pneus novos de borracha — máquinas e aparelhos para construção civil ou industrial"}],
+  "40116200":[{cest:"15.007.00",segmento:"Pneumáticos",descricao:"Pneus novos de borracha — veículos e máquinas agrícolas e florestais"}],
+  "40117000":[{cest:"15.008.00",segmento:"Pneumáticos",descricao:"Pneus novos de borracha — máquinas agrícolas ou florestais"}],
+  "40119100":[{cest:"15.009.00",segmento:"Pneumáticos",descricao:"Pneus novos de borracha — outros pneus de seção transversal sólida ou anelar"}],
+  "40119200":[{cest:"15.010.00",segmento:"Pneumáticos",descricao:"Pneus novos de borracha — de perfil baixo para veículos de alta performance"}],
+  "40119900":[{cest:"15.011.00",segmento:"Pneumáticos",descricao:"Outros pneus novos de borracha"}],
+  "40121100":[{cest:"15.012.00",segmento:"Pneumáticos",descricao:"Pneus recauchutados — automóveis de passageiros"}],
+  "40121200":[{cest:"15.013.00",segmento:"Pneumáticos",descricao:"Pneus recauchutados — ônibus e caminhões"}],
+  "40121300":[{cest:"15.014.00",segmento:"Pneumáticos",descricao:"Pneus recauchutados — aviões"}],
+  "40121900":[{cest:"15.015.00",segmento:"Pneumáticos",descricao:"Outros pneus recauchutados"}],
+  "40122000":[{cest:"15.016.00",segmento:"Pneumáticos",descricao:"Pneus usados de borracha"}],
+  "40129020":[{cest:"15.017.00",segmento:"Pneumáticos",descricao:"Flaps de borracha"}],
+  "40131000":[{cest:"15.018.00",segmento:"Pneumáticos",descricao:"Câmaras de ar de borracha — automóveis de passageiros, ônibus e caminhões"}],
+  "40132000":[{cest:"15.019.00",segmento:"Pneumáticos",descricao:"Câmaras de ar de borracha — bicicletas"}],
+  "40139000":[{cest:"15.020.00",segmento:"Pneumáticos",descricao:"Outras câmaras de ar de borracha"}],
+  /* ── Seg 16 · Produtos alimentícios ── */
+  "0201":[{cest:"16.001.00",segmento:"Alimentos",descricao:"Carnes de bovino, frescas ou refrigeradas"}],
+  "0202":[{cest:"16.002.00",segmento:"Alimentos",descricao:"Carnes de bovino, congeladas"}],
+  "0203":[{cest:"16.003.00",segmento:"Alimentos",descricao:"Carnes de suíno, frescas, refrigeradas ou congeladas"}],
+  "0207":[{cest:"16.004.00",segmento:"Alimentos",descricao:"Carnes e miudezas comestíveis de aves"}],
+  "0302":[{cest:"16.005.00",segmento:"Alimentos",descricao:"Peixes frescos ou refrigerados"}],
+  "0401":[{cest:"16.006.00",segmento:"Alimentos",descricao:"Leite e creme de leite não concentrados"}],
+  "0402":[{cest:"16.007.00",segmento:"Alimentos",descricao:"Leite e creme de leite concentrados ou com açúcar"}],
+  "0403":[{cest:"16.008.00",segmento:"Alimentos",descricao:"Leitelho, leite e creme coalhados, iogurte, quefir"}],
+  "0405":[{cest:"16.009.00",segmento:"Alimentos",descricao:"Manteiga e outras gorduras e óleos derivados do leite; creme de leite"}],
+  "0406":[{cest:"16.010.00",segmento:"Alimentos",descricao:"Queijos e requeijão"}],
+  "1001":[{cest:"16.011.00",segmento:"Alimentos",descricao:"Trigo e mistura de trigo com centeio (mistura)"}],
+  "1005":[{cest:"16.012.00",segmento:"Alimentos",descricao:"Milho"}],
+  "1006":[{cest:"16.013.00",segmento:"Alimentos",descricao:"Arroz"}],
+  "1101":[{cest:"16.014.00",segmento:"Alimentos",descricao:"Farinha de trigo ou de mistura de trigo com centeio"}],
+  "1507":[{cest:"16.015.00",segmento:"Alimentos",descricao:"Óleo de soja e suas frações"}],
+  "1512":[{cest:"16.016.00",segmento:"Alimentos",descricao:"Óleos de girassol, cártamo ou algodão e suas frações"}],
+  "1517":[{cest:"16.017.00",segmento:"Alimentos",descricao:"Margarina e preparações alimentícias"}],
+  "1602":[{cest:"16.018.00",segmento:"Alimentos",descricao:"Outras preparações e conservas de carne, miudezas ou sangue"}],
+  "1702":[{cest:"16.019.00",segmento:"Alimentos",descricao:"Outros açúcares; xaropes e sucedâneos do mel; açúcar e xaropes caramelizados"}],
+  "1704":[{cest:"16.020.00",segmento:"Alimentos",descricao:"Produtos de confeitaria sem cacau (incluído o chocolate branco)"}],
+  "1805":[{cest:"16.021.00",segmento:"Alimentos",descricao:"Cacau em pó sem adição de açúcar ou outros edulcorantes"}],
+  "1806":[{cest:"16.022.00",segmento:"Alimentos",descricao:"Chocolate e outras preparações alimentícias contendo cacau"}],
+  "1901":[{cest:"16.023.00",segmento:"Alimentos",descricao:"Extratos de malte; preparações alimentícias de farinha, grumos, amido ou fécula"}],
+  "1902":[{cest:"16.024.00",segmento:"Alimentos",descricao:"Massas alimentícias, mesmo cozidas ou recheadas (macarrão, espaguete, talharim etc.)"}],
+  "1904":[{cest:"16.025.00",segmento:"Alimentos",descricao:"Produtos à base de cereais obtidos por tufagem ou torrefação; cereais em grão"}],
+  "1905":[{cest:"16.026.00",segmento:"Alimentos",descricao:"Produtos de padaria, pastelaria ou da indústria de bolachas e biscoitos"}],
+  "2001":[{cest:"16.027.00",segmento:"Alimentos",descricao:"Produtos hortícolas, frutos e outras partes comestíveis de plantas preparados ou conservados em vinagre"}],
+  "2004":[{cest:"16.028.00",segmento:"Alimentos",descricao:"Outros produtos hortícolas preparados ou conservados de outro modo que não em vinagre"}],
+  "2005":[{cest:"16.029.00",segmento:"Alimentos",descricao:"Outros produtos hortícolas preparados — não congelados"}],
+  "2007":[{cest:"16.030.00",segmento:"Alimentos",descricao:"Doces, geleias, marmeladas, purês e pastas de frutas"}],
+  "2009":[{cest:"16.031.00",segmento:"Alimentos",descricao:"Sucos de frutas ou de produtos hortícolas, não fermentados, sem adição de álcool"}],
+  "2101":[{cest:"16.032.00",segmento:"Alimentos",descricao:"Extratos, essências e concentrados de café, chá ou mate e preparações à base desses produtos"}],
+  "2103":[{cest:"16.033.00",segmento:"Alimentos",descricao:"Molhos e preparações para molhos; condimentos e temperos compostos; farinha de mostarda"}],
+  "2104":[{cest:"16.034.00",segmento:"Alimentos",descricao:"Preparações para caldos e sopas; sopas e caldos preparados"}],
+  "2106":[{cest:"16.035.00",segmento:"Alimentos",descricao:"Preparações alimentícias diversas"}],
+  /* ── Seg 17 · Produtos de papelaria ── */
+  "4816":[{cest:"17.001.00",segmento:"Papelaria",descricao:"Papel carbono, papel autocopiativo e outros papéis para copiar ou duplicar"}],
+  "4817":[{cest:"17.002.00",segmento:"Papelaria",descricao:"Envelopes, aerogramas, bilhetes-postais não ilustrados e cartões para correspondência de papel"}],
+  "4820":[{cest:"17.003.00",segmento:"Papelaria",descricao:"Cadernos, agendas, livros de notas, classificadores e encadernações"}],
+  "9608":[{cest:"17.004.00",segmento:"Papelaria",descricao:"Esferográficas e canetas; porta-penas, porta-lápis; lápis, lapiseiras e similares"}],
+  "9609":[{cest:"17.005.00",segmento:"Papelaria",descricao:"Lápis, grafites, pastéis, carvões, giz de escrever ou desenhar e giz de alfaiate"}],
+  "9612":[{cest:"17.006.00",segmento:"Papelaria",descricao:"Fitas para máquinas de escrever e similares; almofadas de carimbo"}],
+  "9613":[{cest:"17.007.00",segmento:"Papelaria",descricao:"Isqueiros de bolso, de mesa e similares"}],
+  "9615":[{cest:"17.008.00",segmento:"Papelaria",descricao:"Pentes, travessas para o cabelo e artigos semelhantes; grampos para cabelo"}],
+  /* ── Seg 18 · Perfumaria e higiene ── */
+  "3301":[{cest:"18.001.00",segmento:"Perfumaria/Higiene",descricao:"Óleos essenciais (desterpenados ou não), incluídos os 'concretos' ou 'absolutos'"}],
+  "3303":[{cest:"18.002.00",segmento:"Perfumaria/Higiene",descricao:"Perfumes e águas-de-colônia"}],
+  "3304":[{cest:"18.003.00",segmento:"Perfumaria/Higiene",descricao:"Produtos de beleza ou de maquiagem e preparações para conservação ou cuidados da pele"}],
+  "3305":[{cest:"18.004.00",segmento:"Perfumaria/Higiene",descricao:"Preparações capilares (xampu, condicionador, tintura etc.)"}],
+  "3306":[{cest:"18.005.00",segmento:"Perfumaria/Higiene",descricao:"Preparações para higiene bucal ou dentária (pasta de dente, enxaguatório etc.)"}],
+  "3307":[{cest:"18.006.00",segmento:"Perfumaria/Higiene",descricao:"Preparações para barbear, desodorantes, sais de banho e outros produtos de toucador"}],
+  "33071000":[{cest:"18.007.00",segmento:"Perfumaria/Higiene",descricao:"Preparações para barbear (antes, durante ou após)"}],
+  "33072000":[{cest:"18.008.00",segmento:"Perfumaria/Higiene",descricao:"Desodorantes corporais e antiperspirantes"}],
+  "33073000":[{cest:"18.009.00",segmento:"Perfumaria/Higiene",descricao:"Sais perfumados e outras preparações para banhos"}],
+  "33074100":[{cest:"18.010.00",segmento:"Perfumaria/Higiene",descricao:"Agarbatties e outras preparações odoríferas que atuam por combustão"}],
+  "33074900":[{cest:"18.011.00",segmento:"Perfumaria/Higiene",descricao:"Outras preparações para perfumar ou desodorizar ambientes"}],
+  "33079000":[{cest:"18.012.00",segmento:"Perfumaria/Higiene",descricao:"Outros produtos de perfumaria ou de toucador"}],
+  "3401":[{cest:"18.013.00",segmento:"Perfumaria/Higiene",descricao:"Sabões de toucador em barras, pedaços ou formas moldadas"}],
+  "34011110":[{cest:"18.014.00",segmento:"Perfumaria/Higiene",descricao:"Sabões de toucador"}],
+  "34013000":[{cest:"18.015.00",segmento:"Perfumaria/Higiene",descricao:"Produtos e preparações orgânicos tensoativos para lavar a pele, no estado líquido ou creme"}],
+  /* ── Seg 19 · Eletrônicos e eletrodomésticos ── */
+  "8415":[{cest:"19.001.00",segmento:"Eletrônicos",descricao:"Máquinas e aparelhos de ar condicionado"}],
+  "8418":[{cest:"19.002.00",segmento:"Eletrônicos",descricao:"Refrigeradores, congeladores e outros materiais, máquinas e aparelhos para produção de frio"}],
+  "8421":[{cest:"19.003.00",segmento:"Eletrônicos",descricao:"Centrífugas; aparelhos para filtrar ou depurar líquidos ou gases"}],
+  "8422":[{cest:"19.004.00",segmento:"Eletrônicos",descricao:"Máquinas de lavar louça; máquinas e aparelhos para limpar ou secar garrafas etc."}],
+  "84221100":[{cest:"19.005.00",segmento:"Eletrônicos",descricao:"Máquinas de lavar louça do tipo doméstico"}],
+  "8450":[{cest:"19.006.00",segmento:"Eletrônicos",descricao:"Máquinas de lavar roupa domésticas ou para lavanderias"}],
+  "8451":[{cest:"19.007.00",segmento:"Eletrônicos",descricao:"Máquinas e aparelhos para lavar, limpar, torcer, secar, passar e prensar roupa"}],
+  "8452":[{cest:"19.008.00",segmento:"Eletrônicos",descricao:"Máquinas de costura, exceto as da posição 84.40"}],
+  "8471":[{cest:"19.009.00",segmento:"Eletrônicos",descricao:"Máquinas automáticas para processamento de dados (computadores)"}],
+  "8472":[{cest:"19.010.00",segmento:"Eletrônicos",descricao:"Outras máquinas e aparelhos de escritório"}],
+  "8473":[{cest:"19.011.00",segmento:"Eletrônicos",descricao:"Partes e acessórios de máquinas da posição 84.69 a 84.72"}],
+  "8508":[{cest:"19.012.00",segmento:"Eletrônicos",descricao:"Aspiradores de pó e enceradeiras domésticas"}],
+  "8509":[{cest:"19.013.00",segmento:"Eletrônicos",descricao:"Aparelhos eletromecânicos de motor elétrico incorporado para uso doméstico"}],
+  "8510":[{cest:"19.014.00",segmento:"Eletrônicos",descricao:"Barbeadores, máquinas de cortar cabelo ou de tosquiar, depiladores elétricos"}],
+  "8516":[{cest:"19.015.00",segmento:"Eletrônicos",descricao:"Aquecedores elétricos de água, incluídos os de imersão; aparelhos elétricos p/ aquecimento de ambiente; aparelhos de cozinha e semelhantes"}],
+  "8517":[{cest:"19.016.00",segmento:"Eletrônicos",descricao:"Aparelhos de telefonia (incluídos telefones celulares/smartphones) e outros aparelhos para transmissão ou recepção"}],
+  "85171200":[{cest:"19.017.00",segmento:"Eletrônicos",descricao:"Telefones para redes celulares e outras redes sem fio (celulares e smartphones)"}],
+  "8518":[{cest:"19.018.00",segmento:"Eletrônicos",descricao:"Microfones, alto-falantes, amplificadores, fones de ouvido e headphones"}],
+  "8519":[{cest:"19.019.00",segmento:"Eletrônicos",descricao:"Aparelhos de gravação ou de reprodução de som (MP3 etc.)"}],
+  "8521":[{cest:"19.020.00",segmento:"Eletrônicos",descricao:"Aparelhos de gravação ou reprodução de imagens e sons (DVD, Blu-ray etc.)"}],
+  "8525":[{cest:"19.021.00",segmento:"Eletrônicos",descricao:"Câmeras de televisão, câmeras digitais e câmeras de vídeo"}],
+  "8527":[{cest:"19.022.00",segmento:"Eletrônicos",descricao:"Aparelhos receptores para radiotelefonia, radiotelegrafia ou radiodifusão (rádios)"}],
+  "8528":[{cest:"19.023.00",segmento:"Eletrônicos",descricao:"Monitores e projetores sem aparelho receptor de televisão; aparelhos receptores de TV (LED, LCD, OLED etc.)"}],
+  "8529":[{cest:"19.024.00",segmento:"Eletrônicos",descricao:"Partes reconhecíveis como exclusiva ou principalmente destinadas aos aparelhos das posições 85.25 a 85.28"}],
+  "8531":[{cest:"19.025.00",segmento:"Eletrônicos",descricao:"Aparelhos elétricos de sinalização acústica ou visual (alarmes, sirenes, painéis indicadores, avisadores)"}],
+  "8534":[{cest:"19.026.00",segmento:"Eletrônicos",descricao:"Circuitos impressos"}],
+  "8543":[{cest:"19.027.00",segmento:"Eletrônicos",descricao:"Máquinas e aparelhos elétricos com função própria (geradores de sinais, aquecedores por indução etc.)"}],
+  /* ── Seg 20 · Rações para animais domésticos ── */
+  "2309":[{cest:"20.001.00",segmento:"Rações",descricao:"Preparações dos tipos utilizados na alimentação de animais"}],
+  "23091000":[{cest:"20.002.00",segmento:"Rações",descricao:"Alimentos para cães e gatos acondicionados para venda a retalho"}],
+  "23099000":[{cest:"20.003.00",segmento:"Rações",descricao:"Outras preparações para alimentação animal"}],
+  /* ── Seg 21 · Rolamentos ── */
+  "8482":[{cest:"21.001.00",segmento:"Rolamentos",descricao:"Rolamentos de esferas, de roletes ou de agulhas"}],
+  "84821000":[{cest:"21.002.00",segmento:"Rolamentos",descricao:"Rolamentos de esferas"}],
+  "84822000":[{cest:"21.003.00",segmento:"Rolamentos",descricao:"Rolamentos de roletes cônicos, incluídos os conjuntos de roletes e pistas cônicas"}],
+  "84823000":[{cest:"21.004.00",segmento:"Rolamentos",descricao:"Rolamentos de roletes em barril"}],
+  "84824000":[{cest:"21.005.00",segmento:"Rolamentos",descricao:"Rolamentos de agulhas"}],
+  "84825000":[{cest:"21.006.00",segmento:"Rolamentos",descricao:"Outros rolamentos de roletes cilíndricos"}],
+  "84828000":[{cest:"21.007.00",segmento:"Rolamentos",descricao:"Outros rolamentos (incluídos os rolamentos combinados)"}],
+  "84829100":[{cest:"21.008.00",segmento:"Rolamentos",descricao:"Esferas, agulhas e roletes para rolamentos"}],
+  "84829900":[{cest:"21.009.00",segmento:"Rolamentos",descricao:"Outras partes de rolamentos"}],
+  /* ── Seg 22 · Tintas e vernizes ── */
+  "3208":[{cest:"22.001.00",segmento:"Tintas e Vernizes",descricao:"Tintas e vernizes à base de polímeros sintéticos ou de polímeros naturais modificados"}],
+  "3209":[{cest:"22.002.00",segmento:"Tintas e Vernizes",descricao:"Tintas e vernizes à base de polímeros acrílicos ou vinílicos, dispersos ou dissolvidos em meio aquoso"}],
+  "3210":[{cest:"22.003.00",segmento:"Tintas e Vernizes",descricao:"Outras tintas e vernizes; pigmentos preparados para uso em fabricação de tintas"}],
+  "3211":[{cest:"22.004.00",segmento:"Tintas e Vernizes",descricao:"Secantes preparados"}],
+  "3212":[{cest:"22.005.00",segmento:"Tintas e Vernizes",descricao:"Pigmentos (incluídos as pós e flocos metálicos) dispersos em meios não aquosos"}],
+  "3213":[{cest:"22.006.00",segmento:"Tintas e Vernizes",descricao:"Cores para pintura artística, atividades educativas, pintura de letreiros, cores para modificar tonalidades"}],
+  "3214":[{cest:"22.007.00",segmento:"Tintas e Vernizes",descricao:"Mástique de vidraceiro, cimentos de resina e outros mástiques; massa de encher para pintura"}],
+  "3215":[{cest:"22.008.00",segmento:"Tintas e Vernizes",descricao:"Tintas de impressão, tintas de escrever ou de desenhar e outras tintas (em cartuchos para impressora, p. ex.)"}],
+  "3907":[{cest:"22.009.00",segmento:"Tintas e Vernizes",descricao:"Poliacetais, outros poliéteres e resinas epóxidas; policarbonatos, resinas alquídicas"}],
+  /* ── Seg 23 · Veículos automotores ── */
+  "8701":[{cest:"23.001.00",segmento:"Veículos Automotores",descricao:"Tratores (exceto os da posição 87.09)"}],
+  "8702":[{cest:"23.002.00",segmento:"Veículos Automotores",descricao:"Automóveis para transporte de 10 pessoas ou mais (ônibus, micro-ônibus)"}],
+  "8703":[{cest:"23.003.00",segmento:"Veículos Automotores",descricao:"Automóveis de passageiros e outros veículos para transporte de pessoas (incluídos os veículos de uso misto e os de corrida)"}],
+  "87031000":[{cest:"23.004.00",segmento:"Veículos Automotores",descricao:"Veículos especialmente concebidos para se deslocarem sobre neve; carros de golfe e similares"}],
+  "87032100":[{cest:"23.005.00",segmento:"Veículos Automotores",descricao:"Automóveis com motor a explosão de cilindrada ≤ 1000 cm³"}],
+  "87032200":[{cest:"23.006.00",segmento:"Veículos Automotores",descricao:"Automóveis com motor a explosão de cilindrada > 1000 cm³ e ≤ 1500 cm³"}],
+  "87032300":[{cest:"23.007.00",segmento:"Veículos Automotores",descricao:"Automóveis com motor a explosão de cilindrada > 1500 cm³ e ≤ 3000 cm³"}],
+  "87032400":[{cest:"23.008.00",segmento:"Veículos Automotores",descricao:"Automóveis com motor a explosão de cilindrada > 3000 cm³"}],
+  "87033100":[{cest:"23.009.00",segmento:"Veículos Automotores",descricao:"Automóveis com motor diesel de cilindrada ≤ 1500 cm³"}],
+  "87033200":[{cest:"23.010.00",segmento:"Veículos Automotores",descricao:"Automóveis com motor diesel de cilindrada > 1500 cm³ e ≤ 2500 cm³"}],
+  "87033300":[{cest:"23.011.00",segmento:"Veículos Automotores",descricao:"Automóveis com motor diesel de cilindrada > 2500 cm³"}],
+  "87034000":[{cest:"23.012.00",segmento:"Veículos Automotores",descricao:"Outros veículos com motor a pistão alternativo de ignição por centelha"}],
+  "8704":[{cest:"23.013.00",segmento:"Veículos Automotores",descricao:"Veículos automóveis para transporte de mercadorias"}],
+  "8705":[{cest:"23.014.00",segmento:"Veículos Automotores",descricao:"Veículos automóveis para usos especiais (guindastes, bombeiros, etc.)"}],
+  "8706":[{cest:"23.015.00",segmento:"Veículos Automotores",descricao:"Chassis com motor para os veículos das posições 87.01 a 87.05"}],
+  "8707":[{cest:"23.016.00",segmento:"Veículos Automotores",descricao:"Carroçarias para os veículos das posições 87.01 a 87.05"}],
+  /* ── Seg 24 · Veículos de duas e três rodas ── */
+  "8711":[{cest:"24.001.00",segmento:"Motocicletas",descricao:"Motocicletas (incluídos os ciclomotores) e outros ciclos com motor auxiliar"}],
+  "87111000":[{cest:"24.002.00",segmento:"Motocicletas",descricao:"Motocicletas com motor de pistão alternativo de cilindrada ≤ 50 cm³"}],
+  "87112000":[{cest:"24.003.00",segmento:"Motocicletas",descricao:"Motocicletas com motor de pistão alternativo de cilindrada > 50 cm³ e ≤ 250 cm³"}],
+  "87113000":[{cest:"24.004.00",segmento:"Motocicletas",descricao:"Motocicletas com motor de pistão alternativo de cilindrada > 250 cm³ e ≤ 500 cm³"}],
+  "87114000":[{cest:"24.005.00",segmento:"Motocicletas",descricao:"Motocicletas com motor de pistão alternativo de cilindrada > 500 cm³ e ≤ 800 cm³"}],
+  "87115000":[{cest:"24.006.00",segmento:"Motocicletas",descricao:"Motocicletas com motor de pistão alternativo de cilindrada > 800 cm³"}],
+  "87119000":[{cest:"24.007.00",segmento:"Motocicletas",descricao:"Outras motocicletas"}],
+  "8712":[{cest:"24.008.00",segmento:"Motocicletas",descricao:"Bicicletas e outros ciclos sem motor, incluídos os triciclos de carga"}],
+  /* ── Seg 25 · Vidros ── */
+  "7004":[{cest:"25.001.00",segmento:"Vidros",descricao:"Vidro estirado ou soprado, em folhas, mesmo com camada absorvente, refletora ou não, mas sem outro trabalho"}],
+  "7005":[{cest:"25.002.00",segmento:"Vidros",descricao:"Vidro flotado e vidro desbastado ou polido em uma ou em ambas as faces, em chapas ou em folhas"}],
+  "7007":[{cest:"25.003.00",segmento:"Vidros",descricao:"Vidro de segurança, temperado ou laminado"}],
+  "7008":[{cest:"25.004.00",segmento:"Vidros",descricao:"Vitrais e artigos semelhantes de vidro"}],
+  "7009":[{cest:"25.005.00",segmento:"Vidros",descricao:"Espelhos de vidro, mesmo emoldurados, incluídos os espelhos retrovisores"}],
+  /* ── Seg 26 · Vinis revestidos ── */
+  "3918":[{cest:"26.001.00",segmento:"Vinis Revestidos",descricao:"Revestimentos de plástico para pavimentos, mesmo auto-adesivos, em rolos ou em ladrilhos; revestimentos de paredes e de tetos"}],
+  "3919":[{cest:"26.002.00",segmento:"Vinis Revestidos",descricao:"Chapas, folhas, tiras, fitas, películas e outras formas planas, auto-adesivas de plástico"}],
+  "5903":[{cest:"26.003.00",segmento:"Vinis Revestidos",descricao:"Tecidos impregnados, revestidos, recobertos ou estratificados com plástico"}],
+  /* ── Seg 27 · Bombas e elevadores de líquidos ── */
+  "8413":[{cest:"27.001.00",segmento:"Bombas",descricao:"Bombas para líquidos, incluídas as turbobombas; elevadores de líquidos"}],
+  "84131100":[{cest:"27.002.00",segmento:"Bombas",descricao:"Bombas de mão para qualquer líquido, exceto as das subposições 8413.20 ou 8413.81"}],
+  "84132000":[{cest:"27.003.00",segmento:"Bombas",descricao:"Bombas de mão para combustível, lubrificante ou líquido de arrefecimento para motores"}],
+  "84133000":[{cest:"27.004.00",segmento:"Bombas",descricao:"Bombas de combustível, lubrificante ou líquido de arrefecimento para motores de combustão interna"}],
+  "84136000":[{cest:"27.005.00",segmento:"Bombas",descricao:"Outras bombas volumétricas rotativas"}],
+  "84137000":[{cest:"27.006.00",segmento:"Bombas",descricao:"Outras bombas centrífugas"}],
+  "84138100":[{cest:"27.007.00",segmento:"Bombas",descricao:"Outras bombas para líquidos"}],
+  "84138200":[{cest:"27.008.00",segmento:"Bombas",descricao:"Elevadores de líquidos"}],
+  /* ── Seg 28 · Aquecedores não elétricos de água ── */
+  "8403":[{cest:"28.001.00",segmento:"Aquecedores",descricao:"Caldeiras de aquecimento central, exceto as da posição 84.02"}],
+  "84061100":[{cest:"28.002.00",segmento:"Aquecedores",descricao:"Turbinas a vapor de potência superior a 40 MW"}],
+  "84191100":[{cest:"28.003.00",segmento:"Aquecedores",descricao:"Aquecedores de água de aquecimento instantâneo a gás"}],
+  "84191900":[{cest:"28.004.00",segmento:"Aquecedores",descricao:"Outros aquecedores de água e acumuladores de aquecimento — não elétricos"}],
+  "73211100":[{cest:"28.005.00",segmento:"Aquecedores",descricao:"Aquecedores e acumuladores de água a gás, de uso doméstico"}],
+};
+
+function lookupCest(ncm){
+  const d = (ncm||'').replace(/\D/g,'');
+  if(!d) return null;
+  // tenta 8, 7, 6, 4 dígitos (do mais específico ao mais geral)
+  for(const len of [8,7,6,4]){
+    const key = d.slice(0,len);
+    if(CEST_MAP[key]) return CEST_MAP[key];
+  }
+  return null;
+}
+
+/* ─── UNIDADE DE MEDIDA — TEC (Tarifa Externa Comum) ─── */
+// Unidades padrão por CAPÍTULO (2 dígitos) — fallback quando não há override específico
+// Siglas conforme INMETRO / Receita Federal
+const NCM_UNIT_CAP = {
+  "01":"UN","02":"KG","03":"KG","04":"KG","05":"KG",
+  "06":"UN","07":"KG","08":"KG","09":"KG","10":"T",
+  "11":"KG","12":"KG","13":"KG","14":"KG","15":"KG",
+  "16":"KG","17":"KG","18":"KG","19":"KG","20":"KG",
+  "21":"KG","22":"L","23":"KG","24":"KG","25":"T",
+  "26":"T","27":"KG","28":"KG","29":"KG","30":"KG",
+  "31":"KG","32":"KG","33":"KG","34":"KG","35":"KG",
+  "36":"KG","37":"M2","38":"KG","39":"KG","40":"KG",
+  "41":"KG","42":"UN","43":"KG","44":"M3","45":"KG",
+  "46":"KG","47":"T","48":"KG","49":"KG","50":"KG",
+  "51":"KG","52":"KG","53":"KG","54":"KG","55":"KG",
+  "56":"KG","57":"M2","58":"KG","59":"M2","60":"KG",
+  "61":"UN","62":"UN","63":"KG","64":"PAR","65":"UN",
+  "66":"UN","67":"KG","68":"KG","69":"UN","70":"KG",
+  "71":"KG","72":"KG","73":"KG","74":"KG","75":"KG",
+  "76":"KG","78":"KG","79":"KG","80":"KG","81":"KG",
+  "82":"UN","83":"KG","84":"UN","85":"UN","86":"UN",
+  "87":"UN","88":"UN","89":"UN","90":"UN","91":"UN",
+  "92":"UN","93":"UN","94":"UN","95":"UN","96":"UN",
+  "97":"UN","98":"KG","99":"KG"
+};
+
+// Overrides específicos por código NCM (8 dígitos) — casos onde a unidade difere do capítulo
+const NCM_UNIT_SPEC = {
+  // Energia
+  "27160000":"MWH",
+  // Combustíveis líquidos
+  "27101112":"L","27101113":"L","27101500":"L","27101921":"L","27101922":"L",
+  "27102000":"L","27111200":"KG","27111300":"KG",
+  // Álcool
+  "22071000":"L","22072000":"L",
+  // GLP / GNL
+  "27111100":"T","27111900":"KG","27112100":"M3","27112900":"M3",
+  // Gases industriais
+  "28011000":"KG","28020000":"KG",
+  // Vinhos / bebidas
+  "22041000":"L","22042100":"L","22042900":"L","22043000":"L","22060010":"L",
+  "22082000":"L","22083000":"L","22084000":"L","22085000":"L",
+  "22086000":"L","22087000":"L","22089000":"L",
+  "22021000":"L","22029000":"L","22011000":"L","22019000":"L",
+  // Papel em rolos
+  "48010000":"T","48021000":"T","48029000":"T","48030000":"T",
+  // Madeira
+  "44011000":"M3","44012000":"M3","44031000":"M3","44032000":"M3",
+  "44039900":"M3","44071000":"M3","44079900":"M3",
+  // Vidro
+  "70042000":"M2","70051000":"M2","70052100":"M2","70052900":"M2",
+  // Têxteis em metros
+  "52081100":"M2","52081200":"M2","52091100":"M2","52091200":"M2",
+  "54071000":"M2","54072000":"M2","55161100":"M2",
+  // Calçados
+  "64011000":"PAR","64019900":"PAR","64021200":"PAR","64029900":"PAR",
+  "64031200":"PAR","64039900":"PAR","64041100":"PAR","64051000":"PAR",
+  // Pneumáticos
+  "40111000":"UN","40112000":"UN","40113000":"UN","40114000":"UN",
+  "40115000":"UN","40116100":"UN","40116200":"UN","40117000":"UN",
+  "40119100":"UN","40119200":"UN","40119900":"UN",
+  "40121100":"UN","40121200":"UN","40121300":"UN","40121900":"UN",
+  "40131000":"UN","40132000":"UN","40139000":"UN",
+  // Veículos
+  "87032100":"UN","87032200":"UN","87032300":"UN","87032400":"UN",
+  "87033100":"UN","87033200":"UN","87033300":"UN",
+  "87111000":"UN","87112000":"UN","87113000":"UN",
+  "87114000":"UN","87115000":"UN","87119000":"UN",
+  // Medicamentos
+  "30041000":"KG","30042000":"KG","30043100":"KG","30049000":"KG",
+};
+
+const NCM_UNIT_LABEL = {
+  UN:"Unidade (UN)", KG:"Quilograma (KG)", T:"Tonelada (T)",
+  L:"Litro (L)", M2:"Metro quadrado (M²)", M3:"Metro cúbico (M³)",
+  PAR:"Par (PAR)", DZ:"Dúzia (DZ)", MWH:"Megawatt-hora (MWh)"
+};
+
+function lookupUnit(ncm){
+  const d = (ncm||'').replace(/\D/g,'');
+  if(!d) return null;
+  if(NCM_UNIT_SPEC[d.slice(0,8)]) return NCM_UNIT_SPEC[d.slice(0,8)];
+  const cap = d.slice(0,2).padStart(2,'0');
+  return NCM_UNIT_CAP[cap] || null;
+}
+
+/* ─── AUTOCOMPLETE ─── */
+let acTimer, acCache={}, acIndex=-1, acItems=[];
+
+function fmtNcmAc(c){
+  if(!c||c.length<8) return c||'';
+  return c.slice(0,4)+'.'+c.slice(4,6)+'.'+c.slice(6,8);
+}
+
+function showAc(items){
+  const box = document.getElementById('ncm-autocomplete');
+  acItems = items;
+  acIndex = -1;
+  if(!items.length){box.style.display='none';return;}
+  box.innerHTML = items.map((it,i)=>{
+    const unit = lookupUnit(it.codigo);
+    const rawDesc = it.descricao||'';
+    const desc = rawDesc.charAt(0).toUpperCase()+rawDesc.slice(1).toLowerCase();
+    return `<div class="ncm-ac-item" data-i="${i}" onmousedown="pickAc(${i})">
+      <span class="ncm-ac-code">${fmtNcmAc(it.codigo)}</span>
+      <span class="ncm-ac-desc">${desc}</span>
+      ${unit?`<span class="ncm-ac-unit">${unit}</span>`:''}
+    </div>`;
+  }).join('');
+  box.style.display='block';
+}
+
+function hideAc(){
+  document.getElementById('ncm-autocomplete').style.display='none';
+  acItems=[]; acIndex=-1;
+}
+
+function pickAc(i){
+  const it = acItems[i];
+  if(!it) return;
+  const inp = document.getElementById('ncm-q');
+  inp.value = it.codigo;
+  hideAc();
+  clearTimeout(acTimer);
+  doNcmSearch(it.codigo);
+}
+
+function moveAc(dir){
+  const box = document.getElementById('ncm-autocomplete');
+  const rows = box.querySelectorAll('.ncm-ac-item');
+  if(!rows.length) return false;
+  rows[acIndex]?.classList.remove('ac-active');
+  acIndex = Math.max(0, Math.min(rows.length-1, acIndex+dir));
+  rows[acIndex]?.classList.add('ac-active');
+  rows[acIndex]?.scrollIntoView({block:'nearest'});
+  return true;
+}
+
+async function fetchAc(digits){
+  if(acCache[digits]) return acCache[digits];
+  try{
+    const r = await fetch(`https://brasilapi.com.br/api/ncm/v1/${encodeURIComponent(digits)}`,{mode:'cors',credentials:'omit'});
+    if(!r.ok) return [];
+    const d = await r.json();
+    const arr = Array.isArray(d) ? d : (d&&d.codigo ? [d] : []);
+    acCache[digits] = arr.slice(0,12);
+    return acCache[digits];
+  }catch{ return []; }
+}
+
+function triggerAc(val){
+  const digits = val.replace(/\D/g,'');
+  if(ncmMode!=='code' || digits.length < 2 || digits.length >= 8){
+    hideAc(); return;
+  }
+  clearTimeout(acTimer);
+  acTimer = setTimeout(async()=>{
+    const items = await fetchAc(digits);
+    // só mostra se o input ainda bate com o que foi digitado
+    const cur = document.getElementById('ncm-q').value.replace(/\D/g,'');
+    if(cur === digits) showAc(items);
+  }, 220);
+}
+
 /* ─── NCM SEARCH ─── */
 let ncmMode = 'code';
 let ncmTimer;
@@ -489,7 +1067,7 @@ function setNcmMode(m){
   document.getElementById('ncm-mode-code').classList.toggle('active', m==='code');
   document.getElementById('ncm-mode-text').classList.toggle('active', m==='text');
   document.getElementById('ncm-q').placeholder = m==='code'
-    ? 'Ex: 01012100   (8 dígitos)...'
+    ? 'Ex: 4011   →   autocomplete ativo...'
     : 'Ex: calçados de couro masculino...';
   clearNcm();
 }
@@ -498,6 +1076,8 @@ function clearNcm(){
   document.getElementById('ncm-q').value='';
   document.getElementById('ncm-results').innerHTML='';
   document.getElementById('ncm-status').innerHTML='';
+  hideAc();
+  clearTimeout(acTimer);
 }
 
 function fmtNcm(c){
@@ -524,27 +1104,71 @@ function buildNcmCard(item){
   const ato  = item.tipo_ato && item.numero_ato ? `${item.tipo_ato} nº ${item.numero_ato}` : null;
   const inicio = fmtDate(item.data_inicio);
   const fim  = fmtDate(item.data_fim);
-  const ex   = item.ex!==undefined&&item.ex!==0 ? `<div class="ncm-vig-item">EX: <strong>${item.ex}</strong></div>` : '';
   const zc   = v => parseFloat(v)===0 ? 'zero' : '';
+
+  // Ex-Tarifário
+  const exNum = item.ex!==undefined && item.ex!==null && item.ex!==0 ? item.ex : null;
+  const exHtml = exNum
+    ? `<div style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;background:rgba(167,139,250,.12);border:1px solid rgba(167,139,250,.3);border-radius:6px;padding:4px 8px">
+        <span style="color:var(--violet-hi);font-family:var(--mono);font-size:12px;font-weight:700">EX-${String(exNum).padStart(2,'0')}</span>
+        <span style="font-size:10px;color:var(--muted)">Tributação diferenciada</span>
+      </div>`
+    : `<div style="font-size:11px;color:var(--dim);margin-top:8px">Ex-Tarifário: não aplicável</div>`;
+
+  // Unidade de medida
+  const unitCode = lookupUnit(item.codigo);
+  const unitLabel = unitCode ? (NCM_UNIT_LABEL[unitCode]||unitCode) : null;
+  const unitHtml = unitCode
+    ? `<div style="display:flex;align-items:center;gap:6px;margin-top:8px">
+        <span style="background:rgba(126,184,255,.12);color:var(--blue);border:1px solid rgba(126,184,255,.25);border-radius:4px;padding:2px 7px;font-family:var(--mono);font-size:12px;font-weight:700">${unitCode}</span>
+        <span style="font-size:11px;color:var(--muted)">${unitLabel}</span>
+      </div>
+      <div style="font-size:10px;color:var(--dim);margin-top:3px;font-family:var(--mono)">TEC — Uso fiscal/importação</div>`
+    : `<div style="font-size:11px;color:var(--dim);margin-top:8px">Unidade não mapeada</div>`;
+
+  // CEST lookup
+  const cests = lookupCest(item.codigo);
+  let cestHtml;
+  if(cests && cests.length){
+    cestHtml = cests.map(c=>`
+      <div style="margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+          <span style="font-family:var(--mono);font-size:13px;font-weight:700;color:#fb923c;letter-spacing:.03em">${c.cest}</span>
+          <span style="background:rgba(251,146,60,.15);color:#fb923c;border:1px solid rgba(251,146,60,.3);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600">ST</span>
+        </div>
+        <div style="font-size:11px;color:var(--muted);line-height:1.4">${c.segmento}</div>
+        <div style="font-size:11px;color:var(--dim);line-height:1.4;margin-top:2px">${c.descricao}</div>
+      </div>`).join('');
+    cestHtml += `<div style="font-size:10px;color:var(--dim);margin-top:4px;font-family:var(--mono)">Conv. ICMS 92/2015</div>`;
+  } else {
+    cestHtml = `<div style="color:var(--dim);font-size:11px;line-height:1.5">Não localizado na<br>tabela CEST<br><span style="font-size:10px;font-family:var(--mono)">Conv. ICMS 92/2015</span></div>`;
+  }
 
   return `<div class="ncm-card">
     <div class="ncm-card-header">
       <span class="ncm-code">${co}</span>
       <span class="ncm-desc">${desc}</span>
     </div>
-    <div class="ncm-body">
+    <div class="ncm-body" style="grid-template-columns:1fr 1fr 1fr 1fr">
       <div class="ncm-col">
         <div class="ncm-col-title"><span style="width:7px;height:7px;border-radius:50%;background:var(--violet);display:inline-block;margin-right:5px;"></span>Alíquotas Federais</div>
         <div class="ncm-aliq-row"><span class="ncm-aliq-label">II (Importação)</span><span class="ncm-aliq-value ${zc(item.aliquota_ii)}">${ii}</span></div>
         <div class="ncm-aliq-row"><span class="ncm-aliq-label">IPI</span><span class="ncm-aliq-value ${zc(item.aliquota_ipi)}">${ipi}</span></div>
         <div class="ncm-aliq-row"><span class="ncm-aliq-label">PIS</span><span class="ncm-aliq-value ${zc(item.aliquota_pis)}">${pis}</span></div>
         <div class="ncm-aliq-row"><span class="ncm-aliq-label">COFINS</span><span class="ncm-aliq-value ${zc(item.aliquota_cofins)}">${cof}</span></div>
+        <div class="ncm-col-title" style="margin-top:14px"><span style="width:7px;height:7px;border-radius:50%;background:var(--blue);display:inline-block;margin-right:5px;"></span>Unidade (TEC)</div>
+        ${unitHtml}
+      </div>
+      <div class="ncm-col">
+        <div class="ncm-col-title"><span style="width:7px;height:7px;border-radius:50%;background:#fb923c;display:inline-block;margin-right:5px;"></span>CEST / Sub. Tributária</div>
+        ${cestHtml}
       </div>
       <div class="ncm-col">
         <div class="ncm-col-title"><span style="width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block;margin-right:5px;"></span>Vigência</div>
         <div class="ncm-vig-item">Início: <strong>${inicio}</strong></div>
         <div class="ncm-vig-item">Fim: <strong>${fim}</strong></div>
-        ${ex}
+        <div class="ncm-col-title" style="margin-top:14px"><span style="width:7px;height:7px;border-radius:50%;background:var(--violet-hi);display:inline-block;margin-right:5px;"></span>Ex-Tarifário</div>
+        ${exHtml}
       </div>
       <div class="ncm-col">
         <div class="ncm-col-title"><span style="width:7px;height:7px;border-radius:50%;background:var(--orange-ncm);display:inline-block;margin-right:5px;"></span>Base Legal</div>
@@ -615,11 +1239,28 @@ async function doNcmSearch(val){
   }
 }
 
-document.getElementById('ncm-q').addEventListener('input',e=>{
-  clearTimeout(ncmTimer);
+
+const ncmInp = document.getElementById('ncm-q');
+
+ncmInp.addEventListener('input', e=>{
   const val = e.target.value;
-  ncmTimer = setTimeout(()=>doNcmSearch(val), ncmMode==='code' ? 400 : 600);
+  clearTimeout(ncmTimer);
+  // autocomplete apenas no modo código
+  triggerAc(val);
+  // busca principal com debounce maior
+  ncmTimer = setTimeout(()=>doNcmSearch(val), ncmMode==='code' ? 500 : 600);
 });
+
+ncmInp.addEventListener('keydown', e=>{
+  const box = document.getElementById('ncm-autocomplete');
+  if(box.style.display==='none') return;
+  if(e.key==='ArrowDown'){e.preventDefault();moveAc(1);}
+  else if(e.key==='ArrowUp'){e.preventDefault();moveAc(-1);}
+  else if(e.key==='Enter' && acIndex>=0){e.preventDefault();pickAc(acIndex);}
+  else if(e.key==='Escape'){hideAc();}
+});
+
+ncmInp.addEventListener('blur', ()=>{ setTimeout(hideAc, 150); });
 </script>
 </body>
 </html>
