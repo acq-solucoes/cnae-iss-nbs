@@ -7,10 +7,6 @@ import { renderResultCard } from './components/ResultCard.js';
 import { renderHierarchyView } from './components/HierarchyView.js';
 import { renderRelatedItems } from './components/RelatedItems.js';
 
-const shouldRunEnhancements = window.__ENABLE_APP_ENHANCEMENTS__ === true;
-if (!shouldRunEnhancements) {
-  // No-op por padrão: evita conflito com o script principal inline da página.
-} else {
 const input = document.getElementById('q');
 const clearBtn = document.getElementById('btn-clear');
 const result = document.getElementById('results');
@@ -173,4 +169,3 @@ if (input && clearBtn && ac && result) clearBtn.addEventListener('click', () => 
   input.value = legacyMatch[2];
   runGlobalSearch(legacyMatch[2]);
 })();
-}
