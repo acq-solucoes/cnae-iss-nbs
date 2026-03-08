@@ -7,7 +7,9 @@
     "test": "tests"
   },
   "scripts": {
-    "test": "node tests/basic.test.mjs"
+    "test": "node tests/basic.test.mjs",
+    "dev": "python3 -m http.server 4173 --bind 0.0.0.0",
+    "start": "python3 -m http.server 4173 --bind 0.0.0.0"
   },
   "keywords": [],
   "author": "",
