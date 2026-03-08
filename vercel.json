@@ -1,0 +1,15 @@
+{
+  "rewrites": [
+    { "source": "/", "destination": "/index.html.html" },
+    { "source": "/ncm/:code", "destination": "/index.html.html" },
+    { "source": "/cnae/:code", "destination": "/index.html.html" }
+  ],
+  "headers": [
+    {
+      "source": "/manifest.webmanifest",
+      "headers": [
+        { "key": "Content-Type", "value": "application/manifest+json" }
+      ]
+    }
+  ]
+}

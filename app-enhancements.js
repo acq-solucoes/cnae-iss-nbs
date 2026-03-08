@@ -35,7 +35,11 @@ function setSeo(type, code, description) {
 }
 
 function pushRoute(type, code) {
-  history.replaceState({}, '', `/${type}/${onlyDigits(code)}`);
+  const clean = onlyDigits(code);
+  const url = new URL(window.location.href);
+  url.searchParams.set('tipo', type);
+  url.searchParams.set('codigo', clean);
+  history.replaceState({}, '', `${url.pathname}?${url.searchParams.toString()}`);
 }
 
 function friendlyTax(value) {
@@ -149,8 +153,17 @@ clearBtn.addEventListener('click', () => {
 });
 
 (function handleRoute() {
-  const match = location.pathname.match(/^\/(ncm|cnae)\/(\d{7,8})$/);
-  if (!match) return;
-  input.value = match[2];
-  runGlobalSearch(match[2]);
+  const params = new URLSearchParams(window.location.search);
+  const tipo = params.get('tipo');
+  const codigo = params.get('codigo');
+  if ((tipo === 'ncm' || tipo === 'cnae') && /^\d{7,8}$/.test(codigo || '')) {
+    input.value = codigo;
+    runGlobalSearch(codigo);
+    return;
+  }
+
+  const legacyMatch = location.pathname.match(/^\/(ncm|cnae)\/(\d{7,8})$/);
+  if (!legacyMatch) return;
+  input.value = legacyMatch[2];
+  runGlobalSearch(legacyMatch[2]);
 })();
