@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient.js';
 import { onlyDigits } from '../utils/validators.js';
+import { searchNcmByCode } from './ncmService.js';
 
 const TTL_MS = 1000 * 60 * 30;
 
@@ -20,6 +21,36 @@ function setCache(key, data) {
   } catch {}
 }
 
+async function persistNcmFromApi(item) {
+  if (!supabase || !item?.codigo) return;
+  try {
+    await supabase.from('ncm').upsert({
+      codigo: onlyDigits(item.codigo),
+      descricao: item.descricao || null,
+      capitulo: item.capitulo || null,
+      posicao: item.posicao || null,
+      subposicao: item.subposicao || null,
+      unidade: item.unidade || item.unidade_estatistica || null,
+    }, { onConflict: 'codigo' });
+
+    const tribPayload = {
+      ncm_codigo: onlyDigits(item.codigo),
+      ii: item.ii ?? item.aliquota_ii ?? null,
+      ipi: item.ipi ?? item.aliquota_ipi ?? null,
+      pis: item.pis ?? item.aliquota_pis ?? null,
+      cofins: item.cofins ?? item.aliquota_cofins ?? null,
+      pis_importacao: item.pis_importacao ?? null,
+      cofins_importacao: item.cofins_importacao ?? null,
+      cest: item.cest ?? null,
+      origem_dados: item.origem_dados ?? 'brasilapi',
+    };
+
+    await supabase.from('ncm_tributos').upsert(tribPayload, { onConflict: 'ncm_codigo' });
+  } catch {
+    // persistência não deve bloquear o fluxo principal
+  }
+}
+
 export async function getNcmByCode(code) {
   const digits = onlyDigits(code);
   if (!digits || !supabase) return null;
@@ -34,6 +65,20 @@ export async function getNcmByCode(code) {
   }
   if (data) setCache(cacheKey, data);
   return data;
+}
+
+export async function getOrFetchNcmByCode(code) {
+  const digits = onlyDigits(code);
+  if (!digits) return null;
+
+  const dbNcm = await getNcmByCode(digits);
+  if (dbNcm) return dbNcm;
+
+  const apiItem = (await searchNcmByCode(digits))[0] || null;
+  if (!apiItem) return null;
+
+  await persistNcmFromApi(apiItem);
+  return apiItem;
 }
 
 export async function getNcmTributos(code) {
@@ -73,6 +118,33 @@ export async function getSimplesByCnae(code) {
   return data || [];
 }
 
+export async function logSearch(searchTerm, searchType) {
+  const term = String(searchTerm || '').trim();
+  const type = String(searchType || '').trim().toLowerCase();
+  if (!term || !type) return;
+
+  const payload = {
+    search_term: term.slice(0, 120),
+    search_type: type.slice(0, 24),
+    timestamp: new Date().toISOString(),
+  };
+
+  if (supabase) {
+    try {
+      await supabase.from('search_logs').insert(payload);
+      return;
+    } catch {
+      // fallback local em caso de erro de permissão/RLS
+    }
+  }
+
+  try {
+    const key = 'local:search_logs';
+    const current = JSON.parse(localStorage.getItem(key) || '[]');
+    current.unshift(payload);
+    localStorage.setItem(key, JSON.stringify(current.slice(0, 100)));
+  } catch {}
+}
 
 export async function testSupabaseConnection() {
   if (!supabase) {

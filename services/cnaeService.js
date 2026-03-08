@@ -19,9 +19,19 @@ export function searchCnaeByKeyword(term) {
 }
 
 export function autocompleteCnae(value) {
-  const d = onlyDigits(value);
-  if (d.length < 2) return [];
-  return source().filter((item) => onlyDigits(item.cnae).startsWith(d)).slice(0, 8);
+  const raw = String(value || '').trim();
+  const d = onlyDigits(raw);
+  if (!raw) return [];
+
+  if (d.length >= 2 && d === raw) {
+    return source().filter((item) => onlyDigits(item.cnae).startsWith(d)).slice(0, 8);
+  }
+
+  if (raw.length >= 3) {
+    return searchCnaeByKeyword(raw).slice(0, 8);
+  }
+
+  return [];
 }
 
 export function getRelatedCnaes(item) {

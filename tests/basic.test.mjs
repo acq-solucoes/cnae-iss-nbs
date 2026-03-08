@@ -3,7 +3,9 @@ import { detectSearchType } from '../utils/validators.js';
 import { formatNcm, formatCnae, parseNcmHierarchy, parseCnaeHierarchy } from '../utils/formatters.js';
 
 assert.equal(detectSearchType('40117000'), 'ncm');
+assert.equal(detectSearchType('4011.70.00'), 'ncm');
 assert.equal(detectSearchType('6201500'), 'cnae');
+assert.equal(detectSearchType('6201-5/00'), 'cnae');
 assert.equal(detectSearchType('máquinas agrícolas'), 'keyword');
 
 assert.equal(formatNcm('40117000'), '4011.70.00');

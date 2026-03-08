@@ -1,9 +1,9 @@
 import { detectSearchType, onlyDigits } from './utils/validators.js';
 import { formatNcm, formatCnae, parseNcmHierarchy, parseCnaeHierarchy } from './utils/formatters.js';
-import { searchNcmByCode, searchNcmByKeyword, autocompleteNcm, getRelatedNcms } from './services/ncmService.js';
+import { searchNcmByKeyword, autocompleteNcm, getRelatedNcms } from './services/ncmService.js';
 import { searchCnaeByCode, searchCnaeByKeyword, autocompleteCnae, getRelatedCnaes } from './services/cnaeService.js';
 import { lookupCest } from './services/cestService.js';
-import { getNcmByCode, getNcmTributos, getCestByNcm, getCnaeByCode, getSimplesByCnae, testSupabaseConnection } from './services/databaseService.js';
+import { getOrFetchNcmByCode, getNcmTributos, getCestByNcm, getCnaeByCode, getSimplesByCnae, testSupabaseConnection, logSearch } from './services/databaseService.js';
 import { renderSearchBox } from './components/SearchBox.js';
 import { renderResultCard } from './components/ResultCard.js';
 import { renderHierarchyView } from './components/HierarchyView.js';
@@ -14,6 +14,16 @@ const tabBar = document.querySelector('.tab-bar');
 const host = document.createElement('div');
 host.innerHTML = `${renderSearchBox()}<div id="global-result"></div>`;
 hero.insertBefore(host, tabBar);
+
+function enableUnifiedSearchMode() {
+  const legacyBlocks = ['.tab-bar', '#cnae-section', '#ncm-section'];
+  legacyBlocks.forEach((selector) => {
+    const el = document.querySelector(selector);
+    if (el) el.style.display = 'none';
+  });
+}
+
+enableUnifiedSearchMode();
 
 const input = document.getElementById('global-q');
 const clearBtn = document.getElementById('global-clear');
@@ -42,11 +52,23 @@ function friendlyTax(v) {
   return v === undefined || v === null || v === '' ? 'Não informado na base consultada' : `${v}%`;
 }
 
+let lastLoggedTerm = '';
+function maybeLogSearch(term, type) {
+  const normalized = String(term || '').trim();
+  if (!normalized || normalized === lastLoggedTerm) return;
+
+  if (type === 'keyword' && normalized.length < 3) return;
+  if (type === 'ncm' && onlyDigits(normalized).length !== 8) return;
+  if (type === 'cnae' && onlyDigits(normalized).length !== 7) return;
+
+  lastLoggedTerm = normalized;
+  logSearch(normalized, type);
+}
+
 async function renderNcm(code) {
   result.innerHTML = '<div class="ncm-status"><span class="ncm-spin"></span>Carregando NCM...</div>';
 
-  const dbNcm = await getNcmByCode(code);
-  const item = dbNcm || (await searchNcmByCode(code))[0];
+  const item = await getOrFetchNcmByCode(code);
 
   if (!item) {
     result.innerHTML = '<div class="ncm-empty">Nenhum resultado encontrado.</div>';
@@ -67,6 +89,8 @@ async function renderNcm(code) {
     ['IPI', friendlyTax(trib.ipi ?? trib.aliquota_ipi)],
     ['PIS', friendlyTax(trib.pis ?? trib.aliquota_pis)],
     ['COFINS', friendlyTax(trib.cofins ?? trib.aliquota_cofins)],
+    ['PIS Importação', friendlyTax(trib.pis_importacao)],
+    ['COFINS Importação', friendlyTax(trib.cofins_importacao)],
   ].map(([k, v]) => `<div class="ncm-aliq-row"><span class="ncm-aliq-label">${k}</span><span class="ncm-aliq-value">${v}</span></div>`).join('');
 
   const dbCest = await getCestByNcm(item.codigo);
@@ -87,9 +111,9 @@ async function renderNcm(code) {
     title: `NCM ${formatNcm(item.codigo)}`,
     subtitle: item.descricao,
     sections: [
-      { title: 'Estrutura NCM', content: hierarchy },
+      { title: 'Classificação', content: hierarchy },
       { title: 'Tributação Federal', content: tribHtml },
-      { title: 'CEST / Base legal', content: cestHtml },
+      { title: 'Substituição Tributária (CEST)', content: cestHtml },
       { title: 'NCM relacionados', content: renderRelatedItems('NCM relacionados', relatedNcm, formatNcm) },
     ],
   });
@@ -127,7 +151,7 @@ async function renderCnae(code) {
     title: `CNAE ${formatCnae(item.cnae || item.codigo)}`,
     subtitle: item.descCnae || item.descricao,
     sections: [
-      { title: 'Estrutura CNAE', content: hierarchy },
+      { title: 'Classificação CNAE', content: hierarchy },
       { title: 'CNAE relacionados', content: renderRelatedItems('CNAE relacionados', related, formatCnae) },
       { title: 'Simples Nacional', content: simplesHtml },
     ],
@@ -145,6 +169,8 @@ async function runGlobalSearch(value) {
   }
 
   const type = detectSearchType(query);
+  maybeLogSearch(query, type);
+
   if (type === 'ncm') return renderNcm(query);
   if (type === 'cnae') return renderCnae(query);
 
@@ -166,8 +192,14 @@ input.addEventListener('input', () => {
     runGlobalSearch(q);
     const [ncm, cnae] = await Promise.all([autocompleteNcm(q), Promise.resolve(autocompleteCnae(q))]);
     const merged = [
-      ...ncm.map((x) => ({ label: `NCM ${formatNcm(x.codigo)}`, value: x.codigo })),
-      ...cnae.map((x) => ({ label: `CNAE ${formatCnae(x.cnae)}`, value: x.cnae })),
+      ...ncm.map((x) => ({
+        label: `NCM ${formatNcm(x.codigo)} — ${(x.descricao || '').slice(0, 60)}`,
+        value: x.codigo,
+      })),
+      ...cnae.map((x) => ({
+        label: `CNAE ${formatCnae(x.cnae)} — ${(x.descCnae || '').slice(0, 60)}`,
+        value: x.cnae,
+      })),
     ].slice(0, 8);
 
     if (!merged.length) {
@@ -200,7 +232,6 @@ clearBtn.addEventListener('click', () => {
   input.value = m[2];
   runGlobalSearch(m[2]);
 })();
-
 
 // teste simples de conectividade com Supabase
 testSupabaseConnection();

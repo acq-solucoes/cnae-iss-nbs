@@ -13,6 +13,10 @@ create table if not exists public.ncm_tributos (
   ipi text,
   pis text,
   cofins text,
+  pis_importacao text,
+  cofins_importacao text,
+  cest text,
+  origem_dados text,
   primary key (ncm_codigo)
 );
 
@@ -43,3 +47,14 @@ create table if not exists public.simples_nacional (
 
 create index if not exists idx_ncm_descricao on public.ncm using gin (to_tsvector('portuguese', coalesce(descricao,'')));
 create index if not exists idx_cnae_descricao on public.cnae using gin (to_tsvector('portuguese', coalesce(descricao,'')));
+
+
+create table if not exists public.search_logs (
+  id bigint primary key generated always as identity,
+  search_term text not null,
+  search_type text not null,
+  timestamp timestamptz default now()
+);
+
+create index if not exists idx_search_logs_term on public.search_logs(search_term);
+create index if not exists idx_search_logs_timestamp on public.search_logs(timestamp desc);

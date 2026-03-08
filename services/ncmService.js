@@ -51,9 +51,20 @@ export async function searchNcmByKeyword(keyword) {
 }
 
 export async function autocompleteNcm(value) {
-  const d = onlyDigits(value);
-  if (d.length < 2 || d.length > 7) return [];
-  return searchNcmByCode(d);
+  const raw = String(value || '').trim();
+  const d = onlyDigits(raw);
+
+  if (!raw) return [];
+
+  if (d.length >= 2 && d.length <= 8 && d === raw) {
+    return searchNcmByKeyword(d);
+  }
+
+  if (raw.length >= 3) {
+    return searchNcmByKeyword(raw);
+  }
+
+  return [];
 }
 
 export function getRelatedNcms(items, code) {
