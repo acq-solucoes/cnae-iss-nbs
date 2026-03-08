@@ -1,0 +1,16 @@
+{
+  "name": "cnae-iss-nbs",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app-enhancements.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "node tests/basic.test.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module"
+}

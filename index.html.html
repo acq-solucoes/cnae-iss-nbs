@@ -320,14 +320,9 @@ mark{background:rgba(0,196,154,0.22);color:var(--green-hi);border-radius:2px;pad
 <div class="wrap">
   <div class="hero">
     <div class="hero-text">
-      <div class="badge">LC 116/2003 · CNAE 2.1 · NBS · LC 123/2006</div>
-      <h1>CNAE <span class="x">×</span> ISS <span class="x">×</span> <span class="nb">NBS</span></h1>
-      <p class="subtitle">
-        Pesquise por código ou descrição e descubra o enquadramento em
-        <span style="color:var(--green)">ISS</span>,
-        <span style="color:var(--blue)">NBS</span> e
-        <span style="color:#ffb347">Simples Nacional</span>.
-      </p>
+      <div class="badge">Busca Fiscal Inteligente</div>
+      <h1>NCM <span class="x">+</span> CEST <span class="x">+</span> CNAE <span class="x">+</span> <span class="nb">NBS</span></h1>
+      <p class="subtitle">Consulte de forma unificada e rápida.</p>
     </div>
 
     <div class="promo">
@@ -1356,6 +1351,19 @@ ncmInp.addEventListener('keydown', e=>{
 });
 
 ncmInp.addEventListener('blur', ()=>{ setTimeout(hideAc, 150); });
+
+// Exposição de dados para módulos externos (melhorias sem quebrar o legado)
+window.__CNAE_DATA__ = CNAE;
+window.__CEST_MAP__ = CEST_MAP;
 </script>
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+
+window.supabase = createClient(
+  "https://zogsqlpskmalvijoeajw.supabase.co",
+  "sb_publishable_SR6A-j5Zg6OYi5c8qRaT_Q_-tW72eUg"
+)
+</script>
+<script type="module" src="./app-enhancements.js"></script>
 </body>
 </html>
