@@ -12,13 +12,6 @@ const clearBtn = document.getElementById('btn-clear');
 const result = document.getElementById('results');
 
 let ac = document.getElementById('global-ac');
-if (!ac && input?.parentElement) {
-  ac = document.createElement('div');
-  ac.id = 'global-ac';
-  ac.className = 'ncm-autocomplete';
-  ac.style.display = 'none';
-  input.parentElement.insertAdjacentElement('afterend', ac);
-}
 
 function setSeo(type, code, description) {
   if (!code) return;
