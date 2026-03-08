@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" type="image/svg+xml" href="./favicon.svg?v=acq2">
-  <link rel="apple-touch-icon" href="./apple-touch-icon.svg?v=acq2">
-  <link rel="manifest" href="./manifest.webmanifest?v=acq2">
+<link rel="icon" type="image/svg+xml" href="./favicon.svg?v=acq3">
+  <link rel="apple-touch-icon" href="./apple-touch-icon.svg?v=acq3">
+  <link rel="manifest" href="./manifest.webmanifest?v=acq3">
 <title>Classificador Fiscal — NCM * CNAE * ISS * NBS</title>
   <meta name="description" content="Consulte CNAE, ISS (LC 116/2003), NBS, Simples Nacional, NCM, CEST, alíquotas federais e unidade de medida em uma só ferramenta. Gratuito e atualizado.">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -170,6 +170,8 @@ h1 .nb{color:var(--blue);}
 .search-input:focus{border-color:var(--green);box-shadow:0 0 0 3px var(--green-dim);}
 .btn-clear{background:#000 !important;border:1px solid var(--border-hi);color:var(--muted);font-family:var(--mono);font-size:12px;padding:0 16px;border-radius:var(--radius);cursor:pointer;transition:all .15s;white-space:nowrap;}
 .btn-clear:hover{border-color:var(--green);color:var(--green);}
+/* Bloqueio de compatibilidade: evita exibição de campo legado injetado */
+.global-search{display:none !important;}
 
 /* Count */
 .count-bar{font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:18px;padding-bottom:12px;border-bottom:1px solid var(--border);}
@@ -383,6 +385,16 @@ mark{background:rgba(0,196,154,0.22);color:var(--green-hi);border-radius:2px;pad
 </div>
 
 <script>
+// Compatibilidade defensiva: remove qualquer busca global legada injetada por scripts antigos
+(function legacySearchCleanup(){
+  const drop = () => document.querySelectorAll('.global-search').forEach((el) => el.remove());
+  drop();
+  const obs = new MutationObserver(drop);
+  document.addEventListener('DOMContentLoaded', () => {
+    if (document.body) obs.observe(document.body, { childList: true, subtree: true });
+    drop();
+  });
+})();
 /* ── DYNAMIC TAGLINE ── */
 const slides = [
   'Soluções Empresariais<br><em>do Básico ao Avançado</em>',
