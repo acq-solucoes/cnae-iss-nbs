@@ -11,33 +11,61 @@ import { renderRelatedItems } from './components/RelatedItems.js';
 
 const hero = document.querySelector('.wrap');
 const tabBar = document.querySelector('.tab-bar');
-const host = document.createElement('div');
-host.innerHTML = `${renderSearchBox()}<div id="global-result"></div>`;
-hero.insertBefore(host, tabBar);
+
+const legacyInput = document.getElementById('q');
+const legacyClear = document.getElementById('btn-clear');
+let input;
+let clearBtn;
+let ac;
+let result;
+
+if (legacyInput) {
+  const legacyLabel = document.querySelector('label[for="q"]');
+  if (legacyLabel) {
+    legacyLabel.textContent = 'Busca global NCM/CNAE';
+  }
+  legacyInput.id = 'global-q';
+  legacyInput.placeholder = 'Ex: 40117000, 6201500, máquinas agrícolas';
+
+  if (legacyClear) legacyClear.id = 'global-clear';
+
+  ac = document.getElementById('global-ac');
+  if (!ac) {
+    ac = document.createElement('div');
+    ac.id = 'global-ac';
+    ac.className = 'ncm-autocomplete';
+    ac.style.display = 'none';
+    const searchRow = legacyInput.closest('.search-row');
+    (searchRow?.parentElement || searchRow || legacyInput.parentElement).appendChild(ac);
+  }
+
+  result = document.getElementById('global-result');
+  if (!result) {
+    result = document.createElement('div');
+    result.id = 'global-result';
+    const cnaeSection = document.getElementById('cnae-section') || hero;
+    cnaeSection.appendChild(result);
+  }
+
+  input = document.getElementById('global-q');
+  clearBtn = document.getElementById('global-clear');
+} else {
+  const host = document.createElement('div');
+  host.innerHTML = `${renderSearchBox()}<div id="global-result"></div>`;
+  hero.insertBefore(host, tabBar);
+
+  input = document.getElementById('global-q');
+  clearBtn = document.getElementById('global-clear');
+  ac = document.getElementById('global-ac');
+  result = document.getElementById('global-result');
+}
 
 function enableUnifiedSearchMode() {
-  const legacySelectors = [
-    '.tab-bar',
-    '#cnae-section',
-    '#ncm-section',
-    '#q',
-    '#ncm-q',
-  ];
-
-  legacySelectors.forEach((selector) => {
-    document.querySelectorAll(selector).forEach((el) => {
-      const block = el.closest('#cnae-section, #ncm-section, .tab-bar, .search-wrap') || el;
-      if (block && block !== host && !host.contains(block)) block.remove();
-    });
-  });
+  const ncmSection = document.getElementById('ncm-section');
+  if (ncmSection) ncmSection.style.display = 'none';
 }
 
 enableUnifiedSearchMode();
-
-const input = document.getElementById('global-q');
-const clearBtn = document.getElementById('global-clear');
-const ac = document.getElementById('global-ac');
-const result = document.getElementById('global-result');
 
 function setSeo(type, code, description) {
   const clean = onlyDigits(code || '');
