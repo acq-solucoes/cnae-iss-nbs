@@ -342,7 +342,7 @@ mark{background:rgba(0,196,154,0.22);color:var(--green-hi);border-radius:2px;pad
   </div>
 
   <!-- TABS -->
-  <div class="tab-bar">
+  <div class="tab-bar" hidden>
     <button class="tab-btn cnae-tab active" id="tab-cnae" onclick="switchTab('cnae')">
       <span class="tab-dot"></span>CNAE — ISS / NBS / Simples
     </button>
@@ -353,7 +353,7 @@ mark{background:rgba(0,196,154,0.22);color:var(--green-hi);border-radius:2px;pad
 
   <!-- CNAE SECTION -->
   <div id="cnae-section">
-  <div class="search-wrap">
+  <div class="search-wrap" hidden>
     <label class="search-label" for="q">Digite aqui o Código ou descrição CNAE</label>
     <div class="search-row">
       <input type="text" id="q" class="search-input"
@@ -369,7 +369,7 @@ mark{background:rgba(0,196,154,0.22);color:var(--green-hi);border-radius:2px;pad
   </div><!-- /cnae-section -->
 
   <!-- NCM SECTION -->
-  <div id="ncm-section">
+  <div id="ncm-section" hidden>
     <label class="ncm-label" for="ncm-q">Consulta NCM — Nomenclatura Comum do Mercosul</label>
     <span class="ncm-hint">Busca em tempo real via BrasilAPI · Digite o código de 8 dígitos ou palavras-chave</span>
     <div class="ncm-search-row" style="position:relative">
