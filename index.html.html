@@ -300,6 +300,14 @@ mark{background:rgba(0,196,154,0.22);color:var(--green-hi);border-radius:2px;pad
 .ncm-ato-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:3px;font-family:var(--mono);font-size:10px;background:var(--violet-dim);color:var(--violet-hi);margin-top:4px;}
 .ncm-empty{text-align:center;color:var(--muted);font-size:13px;padding:40px 20px;}
 @media(max-width:700px){.ncm-body{grid-template-columns:1fr;}.ncm-col{border-right:none;border-bottom:1px solid var(--border);}.ncm-col:last-child{border-bottom:none;}}
+
+/* Forçar experiência com uma única barra de busca (global) */
+.tab-bar,
+#cnae-section > .search-wrap,
+#ncm-section {
+  display: none !important;
+}
+
 </style>
 </head>
 <body>
