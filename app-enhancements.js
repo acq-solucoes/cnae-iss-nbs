@@ -16,10 +16,19 @@ host.innerHTML = `${renderSearchBox()}<div id="global-result"></div>`;
 hero.insertBefore(host, tabBar);
 
 function enableUnifiedSearchMode() {
-  const legacyBlocks = ['.tab-bar', '#cnae-section', '#ncm-section'];
-  legacyBlocks.forEach((selector) => {
-    const el = document.querySelector(selector);
-    if (el) el.style.display = 'none';
+  const legacySelectors = [
+    '.tab-bar',
+    '#cnae-section',
+    '#ncm-section',
+    '#q',
+    '#ncm-q',
+  ];
+
+  legacySelectors.forEach((selector) => {
+    document.querySelectorAll(selector).forEach((el) => {
+      const block = el.closest('#cnae-section, #ncm-section, .tab-bar, .search-wrap') || el;
+      if (block && block !== host && !host.contains(block)) block.remove();
+    });
   });
 }
 
