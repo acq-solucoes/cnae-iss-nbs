@@ -128,7 +128,11 @@ async function renderNcm(code) {
       ${taxes}
       ${taxAlertHtml}
       <div class="section" style="padding-left:0">${cestHtml}</div>
-      ${relatedHtml}`);
+      ${relatedHtml}
+      <div style="margin-top:20px; padding-top:10px; border-top:1px dashed var(--border); font-size:10px; color:var(--muted); display:flex; justify-content:space-between;">
+        <span>Fonte: IBPT / BrasilAPI</span>
+        <span>Atualizado em: ${new Date().toLocaleDateString('pt-BR')}</span>
+      </div>`);
     setSeo('ncm', item.codigo, item.descricao);
     pushRoute('ncm', item.codigo);
   } catch {
@@ -167,13 +171,12 @@ function renderCnae(item) {
     ? simplesList.map(s => `<div class="ncm-aliq-row"><span class="ncm-aliq-label">Anexo ${s.anexo}</span><span class="ncm-aliq-value">${s.aliquota}% (Fator R: ${s.fatorR})</span></div>`).join('')
     : '<div class="ncm-vig-item">Não consta no Simples</div>';
 
-  const comparisonHtml = getRegimeComparison(item);
-
   const related = getRelatedCnaes(item).map((x) => ({ code: x.cnae, description: x.descCnae }));
-  const relatedHtml = renderRelatedItems('CNAEs relacionados', related, formatCnae);
+  const relatedHtml = renderRelatedItems('CNAEs da mesma categoria', related, formatCnae);
 
   result.innerHTML = renderResultCard(`${formatCnae(item.cnae)} — ${item.descCnae}`,
     `${hierarchy}<hr style="border-color:var(--border);margin:10px 0">
+    <div style="margin-bottom:15px">${relatedHtml}</div>
     <div class="ncm-body" style="border-top:none;grid-template-columns:1fr 1fr">
       <div class="ncm-col" style="padding-left:0">
         <div class="ncm-col-title"><span class="dot-green" style="width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:5px;"></span>ISS (LC 116)</div>
@@ -189,7 +192,10 @@ function renderCnae(item) {
       ${nbsHtml}
     </div>
     ${comparisonHtml}
-    ${relatedHtml}`);
+    <div style="margin-top:20px; padding-top:10px; border-top:1px dashed var(--border); font-size:10px; color:var(--muted); display:flex; justify-content:space-between;">
+      <span>Fonte: CONCLA (IBGE) / Simples Nacional</span>
+      <span>Base v.2024</span>
+    </div>`);
 
   // Update simples value in comparison if available
   const simplesValDisplay = document.getElementById('tax-simples-val');
@@ -202,7 +208,8 @@ function renderCnae(item) {
 }
 
 async function runGlobalSearch(value) {
-  const query = String(value || '').trim();
+  // Busca inteligente: Remove pontos, traços, barras e espaços
+  const query = String(value || '').replace(/[.\-/ ]/g, '').trim();
   if (!query) {
     result.innerHTML = '';
     return;
@@ -240,7 +247,7 @@ input.addEventListener('input', () => {
     const q = input.value.trim();
     runGlobalSearch(q);
     const [ncm, cnae] = await Promise.all([autocompleteNcm(q), Promise.resolve(autocompleteCnae(q))]);
-    const merged = [...ncm.map((x) => ({ label: `NCM ${formatNcm(x.codigo)}`, value: x.codigo })), ...cnae.map((x) => ({ label: `CNAE ${formatCnae(x.cnae)}`, value: x.cnae }))].slice(0, 8);
+    const merged = [...cnae.map((x) => ({ label: `CNAE ${formatCnae(x.cnae)}`, value: x.cnae })), ...ncm.map((x) => ({ label: `NCM ${formatNcm(x.codigo)}`, value: x.codigo }))].slice(0, 8);
     if (!merged.length) {
       ac.style.display = 'none';
       return;
