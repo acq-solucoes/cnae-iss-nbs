@@ -3,21 +3,15 @@ import { formatNcm, formatCnae, parseNcmHierarchy, parseCnaeHierarchy } from './
 import { searchNcmByCode, searchNcmByKeyword, autocompleteNcm, getRelatedNcms } from './services/ncmService.js';
 import { searchCnaeByCode, searchCnaeByKeyword, autocompleteCnae, getRelatedCnaes } from './services/cnaeService.js';
 import { lookupCest } from './services/cestService.js';
-import { renderSearchBox } from './components/SearchBox.js';
 import { renderResultCard } from './components/ResultCard.js';
 import { renderHierarchyView } from './components/HierarchyView.js';
 import { renderRelatedItems } from './components/RelatedItems.js';
 
-const hero = document.querySelector('.wrap');
-const tabBar = document.querySelector('.tab-bar');
-const host = document.createElement('div');
-host.innerHTML = `${renderSearchBox()}<div id="global-result"></div>`;
-hero.insertBefore(host, tabBar);
+const input = document.getElementById('q');
+const clearBtn = document.getElementById('btn-clear');
+const result = document.getElementById('results');
 
-const input = document.getElementById('global-q');
-const clearBtn = document.getElementById('global-clear');
-const ac = document.getElementById('global-ac');
-const result = document.getElementById('global-result');
+let ac = document.getElementById('global-ac');
 
 function setSeo(type, code, description) {
   if (!code) return;
@@ -35,7 +29,11 @@ function setSeo(type, code, description) {
 }
 
 function pushRoute(type, code) {
-  history.replaceState({}, '', `/${type}/${onlyDigits(code)}`);
+  const clean = onlyDigits(code);
+  const url = new URL(window.location.href);
+  url.searchParams.set('tipo', type);
+  url.searchParams.set('codigo', clean);
+  history.replaceState({}, '', `${url.pathname}?${url.searchParams.toString()}`);
 }
 
 function friendlyTax(value) {
@@ -118,7 +116,7 @@ async function runGlobalSearch(value) {
 }
 
 let acTimer;
-input.addEventListener('input', () => {
+if (input && clearBtn && ac && result) input.addEventListener('input', () => {
   clearTimeout(acTimer);
   acTimer = setTimeout(async () => {
     const q = input.value.trim();
@@ -134,7 +132,7 @@ input.addEventListener('input', () => {
   }, 250);
 });
 
-ac.addEventListener('mousedown', (e) => {
+if (input && clearBtn && ac && result) ac.addEventListener('mousedown', (e) => {
   const row = e.target.closest('.ncm-ac-item');
   if (!row) return;
   input.value = row.dataset.v;
@@ -142,15 +140,25 @@ ac.addEventListener('mousedown', (e) => {
   runGlobalSearch(row.dataset.v);
 });
 
-clearBtn.addEventListener('click', () => {
+if (input && clearBtn && ac && result) clearBtn.addEventListener('click', () => {
   input.value = '';
   result.innerHTML = '';
   ac.style.display = 'none';
 });
 
 (function handleRoute() {
-  const match = location.pathname.match(/^\/(ncm|cnae)\/(\d{7,8})$/);
-  if (!match) return;
-  input.value = match[2];
-  runGlobalSearch(match[2]);
+  if (!input || !result) return;
+  const params = new URLSearchParams(window.location.search);
+  const tipo = params.get('tipo');
+  const codigo = params.get('codigo');
+  if ((tipo === 'ncm' || tipo === 'cnae') && /^\d{7,8}$/.test(codigo || '')) {
+    input.value = codigo;
+    runGlobalSearch(codigo);
+    return;
+  }
+
+  const legacyMatch = location.pathname.match(/^\/(ncm|cnae)\/(\d{7,8})$/);
+  if (!legacyMatch) return;
+  input.value = legacyMatch[2];
+  runGlobalSearch(legacyMatch[2]);
 })();

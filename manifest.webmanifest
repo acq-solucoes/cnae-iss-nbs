@@ -1,0 +1,17 @@
+{
+  "name": "ACQ Busca Fiscal",
+  "short_name": "ACQ Fiscal",
+  "description": "Classificador Fiscal — NCM, CNAE, ISS e NBS",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0a0a0f",
+  "theme_color": "#0a0a0f",
+  "icons": [
+    {
+      "src": "icon.svg?v=acq4",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
