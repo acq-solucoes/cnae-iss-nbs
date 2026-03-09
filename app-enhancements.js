@@ -10,8 +10,16 @@ import { renderRelatedItems } from './components/RelatedItems.js';
 
 const hero = document.querySelector('.wrap');
 const tabBar = document.querySelector('.tab-bar');
+const cnaeSec = document.getElementById('cnae-section');
+const ncmSec = document.getElementById('ncm-section');
+
+if (tabBar) tabBar.style.display = 'none';
+if (cnaeSec) cnaeSec.style.display = 'none';
+if (ncmSec) ncmSec.style.display = 'none';
+
 const host = document.createElement('div');
-host.innerHTML = `${renderSearchBox()}<div id="global-result"></div>`;
+host.style.cssText = 'transition: all 0.3s ease;';
+host.innerHTML = `${renderSearchBox()}<div id="global-result" style="min-height:200px; transition: opacity 0.3s ease;"></div>`;
 hero.insertBefore(host, tabBar);
 
 const input = document.getElementById('global-q');
@@ -92,9 +100,45 @@ function renderCnae(item) {
     { label: 'Classe', value: `${h.classe.codigo} — ${h.classe.descricao}` },
     { label: 'Subclasse', value: `${h.subclasse.codigo} — ${h.subclasse.descricao}` },
   ]);
+
+  // ISS
+  const issHtml = item.noISS
+    ? '<div class="ncm-vig-item">ISS não se aplica (comércio/indústria)</div>'
+    : (item.items || []).map(it => `<div class="ncm-vig-item"><strong>${it.item}</strong> — ${it.descItem}</div>`).join('');
+
+  // NBS & Simples
+  const key = onlyDigits(item.cnae);
+  const nbsList = (window.NBS_MAP || {})[key] || [];
+  const nbsHtml = nbsList.length
+    ? nbsList.map(n => `<div class="ncm-vig-item"><strong>${n.codigo}</strong> — ${n.descricao}</div>`).join('')
+    : '<div class="ncm-vig-item">Sem mapeamento NBS</div>';
+
+  const simplesList = (window.SIMPLES_MAP || {})[key] || [];
+  const simplesHtml = simplesList.length
+    ? simplesList.map(s => `<div class="ncm-aliq-row"><span class="ncm-aliq-label">Anexo ${s.anexo}</span><span class="ncm-aliq-value">${s.aliquota}% (Fator R: ${s.fatorR})</span></div>`).join('')
+    : '<div class="ncm-vig-item">Não consta no Simples</div>';
+
   const related = getRelatedCnaes(item).map((x) => ({ code: x.cnae, description: x.descCnae }));
   const relatedHtml = renderRelatedItems('CNAEs relacionados', related, formatCnae);
-  result.innerHTML = renderResultCard(`${formatCnae(item.cnae)} — ${item.descCnae}`, `${hierarchy}${relatedHtml}`);
+
+  result.innerHTML = renderResultCard(`${formatCnae(item.cnae)} — ${item.descCnae}`,
+    `${hierarchy}<hr style="border-color:var(--border);margin:10px 0">
+    <div class="ncm-body" style="border-top:none;grid-template-columns:1fr 1fr">
+      <div class="ncm-col" style="padding-left:0">
+        <div class="ncm-col-title"><span class="dot-green" style="width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:5px;"></span>ISS (LC 116)</div>
+        ${issHtml}
+      </div>
+      <div class="ncm-col" style="border-right:none">
+        <div class="ncm-col-title"><span class="dot-orange" style="width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:5px;"></span>Simples Nacional</div>
+        ${simplesHtml}
+      </div>
+    </div>
+    <div class="section" style="padding-left:0">
+      <div class="ncm-col-title"><span style="width:7px;height:7px;border-radius:50%;background:var(--blue);display:inline-block;margin-right:5px;"></span>NBS Relacionados</div>
+      ${nbsHtml}
+    </div>
+    ${relatedHtml}`);
+
   setSeo('cnae', item.cnae, item.descCnae);
   pushRoute('cnae', item.cnae);
 }
@@ -107,15 +151,29 @@ async function runGlobalSearch(value) {
   }
   const type = detectSearchType(query);
   if (type === 'ncm') return renderNcm(query);
-  if (type === 'cnae') return renderCnae(searchCnaeByCode(query)[0]);
+  if (type === 'cnae') {
+    const items = searchCnaeByCode(query);
+    if (items[0]) return renderCnae(items[0]);
+  }
 
   result.innerHTML = '<div class="ncm-status"><span class="ncm-spin"></span>Buscando em NCM e CNAE...</div>';
   const [ncm, cnae] = await Promise.all([searchNcmByKeyword(query), Promise.resolve(searchCnaeByKeyword(query))]);
+
   const blocks = [];
-  if (ncm[0]) blocks.push(renderResultCard(`NCM ${formatNcm(ncm[0].codigo)}`, ncm[0].descricao));
-  if (cnae[0]) blocks.push(renderResultCard(`CNAE ${formatCnae(cnae[0].cnae)}`, cnae[0].descCnae));
-  result.innerHTML = blocks.length ? blocks.join('') : '<div class="ncm-empty">Nenhum resultado encontrado.</div>';
+  if (ncm.length) {
+    ncm.slice(0, 3).forEach(x => {
+      blocks.push(renderResultCard(`NCM ${formatNcm(x.codigo)}`, `<div class="ncm-desc">${x.descricao}</div><button class="ncm-ac-item" style="border:1px solid var(--border);margin-top:8px;padding:4px 10px;border-radius:4px" onclick="window.runGlobalSearch('${x.codigo}')">Ver detalhes</button>`));
+    });
+  }
+  if (cnae.length) {
+    cnae.slice(0, 3).forEach(x => {
+      blocks.push(renderResultCard(`CNAE ${formatCnae(x.cnae)}`, `<div class="ncm-desc">${x.descCnae}</div><button class="ncm-ac-item" style="border:1px solid var(--border);margin-top:8px;padding:4px 10px;border-radius:4px" onclick="window.runGlobalSearch('${x.cnae}')">Ver detalhes</button>`));
+    });
+  }
+
+  result.innerHTML = blocks.length ? blocks.join('') : '<div class="ncm-empty">Nenhum resultado encontrado para "' + query + '".</div>';
 }
+window.runGlobalSearch = runGlobalSearch;
 
 let acTimer;
 input.addEventListener('input', () => {
