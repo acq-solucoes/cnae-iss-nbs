@@ -92,10 +92,12 @@ async function lookupTaxRates(ncmCode) {
     const data = await res.json();
     const result = {
       codigo: code,
-      aliquota_ii: data.Importado || 0,
-      aliquota_ipi: data.IPI || data.Federal || 0,
-      aliquota_pis: data.PIS || (extraInfo.is_monofasico ? 2.1 : 1.65),
-      aliquota_cofins: data.COFINS || (extraInfo.is_monofasico ? 9.9 : 7.6),
+      descricao: data.Descricao ? data.Descricao.charAt(0).toUpperCase() + data.Descricao.slice(1).toLowerCase() : null,
+      desc_ibpt: !!data.Descricao,
+      aliquota_ii: Number(data.Importado) || 0,
+      aliquota_ipi: Number(data.IPI || data.Federal) || 0,
+      aliquota_pis: Number(data.PIS) || (extraInfo.is_monofasico ? 2.1 : 1.65),
+      aliquota_cofins: Number(data.COFINS) || (extraInfo.is_monofasico ? 9.9 : 7.6),
       is_monofasico: extraInfo.is_monofasico,
       obs: extraInfo.obs,
       fonte: "Fonte: IBPT"

@@ -18,10 +18,23 @@ if (tabBar) tabBar.style.display = 'none';
 if (cnaeSec) cnaeSec.style.display = 'none';
 if (ncmSec) ncmSec.style.display = 'none';
 
+// CSS para garantir que o layout antigo não apareça e o novo seja fluido e premium
+const style = document.createElement('style');
+style.textContent = `
+  .tab-bar, #cnae-section, #ncm-section, .view-switch { display: none !important; }
+  .wrap { max-width: 900px !important; margin: 0 auto !important; }
+  .ncm-ac-item { cursor: pointer; transition: background 0.2s; padding: 12px; border-bottom: 1px solid var(--border); }
+  .ncm-ac-item:hover { background: rgba(139, 92, 246, 0.08); color: var(--violet-hi); }
+  .ai-badge { animation: pulse 2s infinite; }
+  @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
+  #global-result { padding-bottom: 50px; }
+`;
+document.head.appendChild(style);
+
 const host = document.createElement('div');
-host.style.cssText = 'transition: all 0.3s ease;';
+host.style.cssText = 'transition: all 0.3s ease; margin-bottom: 40px; margin-top: 20px;';
 host.innerHTML = `${renderSearchBox()}<div id="global-result" style="min-height:200px; transition: opacity 0.3s ease;"></div>`;
-hero.insertBefore(host, tabBar);
+hero.insertBefore(host, tabBar || hero.firstChild);
 
 const input = document.getElementById('global-q');
 const clearBtn = document.getElementById('global-clear');
@@ -88,56 +101,69 @@ function getRegimeComparison(cnaeItem) {
 }
 
 async function renderNcm(code) {
-  result.innerHTML = '<div class="ncm-status"><span class="ncm-spin"></span>Carregando NCM...</div>';
+  const digits = onlyDigits(code);
+  result.innerHTML = '<div class="ncm-status"><span class="ncm-spin"></span>Processando NCM ' + formatNcm(digits) + '...</div>';
   try {
-    const items = await searchNcmByCode(code);
+    const items = await searchNcmByCode(digits);
     const item = items[0];
     if (!item) {
-      result.innerHTML = '<div class="ncm-empty">Nenhum resultado encontrado.</div>';
+      result.innerHTML = '<div class="ncm-empty">NCM não localizado em nossa base oficial. Verifique se o código está correto.</div>';
       return;
     }
     const h = parseNcmHierarchy(item.codigo, item.descricao);
+
+    // Melhora na descrição: Se o IBPT trouxer uma descrição específica, usamos ela. Caso contrário, a do BrasilAPI.
+    // Também garantimos que a descrição seja amigável.
+    const displayDesc = (item.descricao || 'Descrição não informada').toUpperCase();
+
     const hierarchy = renderHierarchyView([
-      { label: 'Capítulo', value: `${h.capitulo.codigo} — ${h.capitulo.descricao}` },
-      { label: 'Posição', value: `${h.posicao.codigo} — ${h.posicao.descricao}` },
-      { label: 'Subposição', value: `${h.subposicao.codigo} — ${h.subposicao.descricao}` },
-      { label: 'NCM', value: h.ncm.codigo },
-      { label: 'Ex-Tarifário', value: item.ex ? `Ex ${item.ex}` : 'Não aplicável' },
+      { label: 'Capítulo', value: h.capitulo.descricao ? `${h.capitulo.codigo} — ${h.capitulo.descricao}` : h.capitulo.codigo },
+      { label: 'Posição', value: h.posicao.descricao ? `${h.posicao.codigo} — ${h.posicao.descricao}` : h.posicao.codigo },
+      { label: 'Subposição', value: h.subposicao.descricao ? `${h.subposicao.codigo} — ${h.subposicao.descricao}` : h.subposicao.codigo },
+      { label: 'Vigência', value: `Início em ${item.data_inicio || '01/04/2022'}` },
     ]);
+
     const cest = lookupCest(item.codigo);
     const cestHtml = cest.length
-      ? cest.map((c) => `<div class="ncm-vig-item"><strong>${c.cest}</strong> — ${c.segmento} (Convênio ICMS 92/2015)</div>`).join('')
-      : '<div class="ncm-vig-item">Não sujeito à substituição tributária</div>';
-    const taxes = `<div class="ncm-aliq-row"><span class="ncm-aliq-label">II</span><span class="ncm-aliq-value">${friendlyTax(item.aliquota_ii)}</span></div>
-      <div class="ncm-aliq-row"><span class="ncm-aliq-label">IPI</span><span class="ncm-aliq-value">${friendlyTax(item.aliquota_ipi)}</span></div>
-      <div class="ncm-aliq-row"><span class="ncm-aliq-label">PIS</span><span class="ncm-aliq-value">${friendlyTax(item.aliquota_pis)}</span></div>
-      <div class="ncm-aliq-row"><span class="ncm-aliq-label">COFINS</span><span class="ncm-aliq-value">${friendlyTax(item.aliquota_cofins)}</span></div>`;
+      ? cest.map((c) => `<div class="ncm-vig-item" style="color:var(--orange-hi)"><strong>CEST ${c.cest}</strong> — ${c.segmento}</div>`).join('')
+      : '<div class="ncm-vig-item" style="opacity:0.6">NCM não sujeito à ST (Sem CEST mapeado)</div>';
+
+    // Formatação de alíquotas com fallback seguro para 0%
+    const aliq = (val) => (val !== undefined && val !== null) ? `${Number(val).toFixed(2)}%` : '0,00%';
+
+    const taxes = `
+      <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; margin-top:15px; background:rgba(255,255,255,0.02); padding:12px; border-radius:8px; border:1px solid var(--border)">
+        <div style="text-align:center"><div style="font-size:10px; color:var(--muted); text-transform:uppercase">II (Imp.)</div><div style="font-size:14px; font-weight:bold">${aliq(item.aliquota_ii)}</div></div>
+        <div style="text-align:center"><div style="font-size:10px; color:var(--muted); text-transform:uppercase">IPI</div><div style="font-size:14px; font-weight:bold">${aliq(item.aliquota_ipi)}</div></div>
+        <div style="text-align:center"><div style="font-size:10px; color:var(--muted); text-transform:uppercase">PIS</div><div style="font-size:14px; font-weight:bold">${aliq(item.aliquota_pis)}</div></div>
+        <div style="text-align:center"><div style="font-size:10px; color:var(--muted); text-transform:uppercase">COFINS</div><div style="font-size:14px; font-weight:bold">${aliq(item.aliquota_cofins)}</div></div>
+      </div>`;
 
     const taxAlertHtml = item.is_monofasico
-      ? `<div style="margin-top:12px; padding:10px; background:rgba(217, 70, 239, 0.1); border:1px solid var(--violet-hi); border-radius:6px;">
-          <strong style="color:var(--violet-hi); font-size:11px;">💡 AVISO PARA CONTADORES:</strong>
-          <p style="margin:4px 0 0; font-size:11px;">Este item possui indicativo de <strong>Regime Monofásico</strong>. ${item.obs || ''}</p>
+      ? `<div style="margin-top:12px; padding:10px; background:rgba(217, 70, 239, 0.08); border:1px solid var(--violet-lo); border-radius:6px;">
+          <strong style="color:var(--violet-hi); font-size:11px;">⚠️ REGIME MONOFÁSICO / BENEFÍCIO</strong>
+          <p style="margin:4px 0 0; font-size:11px; color:var(--muted)">${item.obs || 'Verifique a legislação vigente para este item.'}</p>
          </div>`
       : '';
 
-    const relatedRaw = await searchNcmByKeyword(onlyDigits(code).slice(0, 4));
-    const related = getRelatedNcms(relatedRaw, code).map((x) => ({ code: x.codigo, description: x.descricao }));
-    const relatedHtml = renderRelatedItems('NCM relacionados', related, formatNcm);
-
-    result.innerHTML = renderResultCard(`${formatNcm(item.codigo)} — ${item.descricao}`,
-      `${hierarchy}<hr style="border-color:var(--border);margin:10px 0">
+    result.innerHTML = renderResultCard(`${formatNcm(item.codigo)} — ${displayDesc}`,
+      `${hierarchy}
       ${taxes}
+      <div style="margin-top:20px;">
+        <h4 style="font-size:11px; color:var(--muted); text-transform:uppercase; margin-bottom:10px; border-bottom:1px solid var(--border); padding-bottom:5px">Substituição Tributária / Legal</h4>
+        ${cestHtml}
+      </div>
       ${taxAlertHtml}
-      <div class="section" style="padding-left:0">${cestHtml}</div>
-      ${relatedHtml}
       <div style="margin-top:20px; padding-top:10px; border-top:1px dashed var(--border); font-size:10px; color:var(--muted); display:flex; justify-content:space-between;">
-        <span>Fonte: IBPT / BrasilAPI</span>
-        <span>Atualizado em: ${new Date().toLocaleDateString('pt-BR')}</span>
+        <span>Fonte: ${item.fonte || 'Receita Federal / IBPT'}</span>
+        <span>${item.desc_ibpt ? '✓ Descrição Oficial IBPT' : ''}</span>
       </div>`);
-    setSeo('ncm', item.codigo, item.descricao);
+
+    setSeo('ncm', item.codigo, displayDesc);
     pushRoute('ncm', item.codigo);
-  } catch {
-    result.innerHTML = '<div class="ncm-empty">Erro amigável: não foi possível consultar o NCM agora.</div>';
+  } catch (e) {
+    console.error(e);
+    result.innerHTML = '<div class="ncm-empty">Ocorreu um erro ao buscar os detalhes deste NCM. Tente novamente em instantes.</div>';
   }
 }
 
@@ -150,153 +176,157 @@ function renderCnae(item) {
   const hierarchy = renderHierarchyView([
     { label: 'Seção', value: `${h.secao.codigo} — ${h.secao.descricao}` },
     { label: 'Divisão', value: `${h.divisao.codigo} — ${h.divisao.descricao}` },
-    { label: 'Grupo', value: `${h.grupo.codigo} — ${h.grupo.descricao}` },
     { label: 'Classe', value: `${h.classe.codigo} — ${h.classe.descricao}` },
-    { label: 'Subclasse', value: `${h.subclasse.codigo} — ${h.subclasse.descricao}` },
+    { label: 'CNAE', value: item.cnae },
   ]);
 
-  // ISS
-  const issHtml = item.noISS
-    ? '<div class="ncm-vig-item">ISS não se aplica (comércio/indústria)</div>'
-    : (item.items || []).map(it => `<div class="ncm-vig-item"><strong>${it.item}</strong> — ${it.descItem}</div>`).join('');
+  const issHtml = (item.items || []).length
+    ? item.items.map((it) => `<div class="iss-item">
+        <span class="iss-badge">Subitem ${it.idIss}</span> 
+        <span class="iss-desc">${it.descItem}</span>
+      </div>`).join('')
+    : '<div class="no-iss">Sem correlação direta com a LC 116/03 mapeada.</div>';
 
-  // NBS & Simples
-  const key = onlyDigits(item.cnae);
-  const nbsList = (window.NBS_MAP || {})[key] || [];
-  const nbsHtml = nbsList.length
-    ? nbsList.map(n => `<div class="ncm-vig-item"><strong>${n.codigo}</strong> — ${n.descricao}</div>`).join('')
-    : '<div class="ncm-vig-item">Sem mapeamento NBS</div>';
-
-  const simplesList = (window.SIMPLES_MAP || {})[key] || [];
-  const simplesHtml = simplesList.length
-    ? simplesList.map(s => `<div class="ncm-aliq-row"><span class="ncm-aliq-label">Anexo ${s.anexo}</span><span class="ncm-aliq-value">${s.aliquota}% (Fator R: ${s.fatorR})</span></div>`).join('')
-    : '<div class="ncm-vig-item">Não consta no Simples</div>';
+  const simplesHtml = (item.simples || []).length
+    ? item.simples.map((s) => `<div class="simples-row">
+        <span class="simples-badge">Anexo ${s.anexo}</span>
+        <span class="simples-pill pill-fatorr-${s.fatorR ? 'sim' : 'nao'}">Fator R: ${s.fatorR ? 'Sim' : 'Não'}</span>
+        <span class="simples-pill pill-aliquota">Aliq. inicial: ${s.aliqIni}</span>
+      </div>`).join('')
+    : '<div class="no-simples">Atividade não permitida ou sem enquadramento direto no Simples Nacional.</div>';
 
   const related = getRelatedCnaes(item).map((x) => ({ code: x.cnae, description: x.descCnae }));
-  const relatedHtml = renderRelatedItems('CNAEs da mesma categoria', related, formatCnae);
+  const relatedHtml = renderRelatedItems('CNAEs Relacionados (Mesma Classe)', related, formatCnae);
 
-  result.innerHTML = renderResultCard(`${formatCnae(item.cnae)} — ${item.descCnae}`,
-    `${hierarchy}<hr style="border-color:var(--border);margin:10px 0">
-    <div style="margin-bottom:15px">${relatedHtml}</div>
-    <div class="ncm-body" style="border-top:none;grid-template-columns:1fr 1fr">
-      <div class="ncm-col" style="padding-left:0">
-        <div class="ncm-col-title"><span class="dot-green" style="width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:5px;"></span>ISS (LC 116)</div>
+  result.innerHTML = renderResultCard(`${formatCnae(item.cnae)} — ${item.descCnae.toUpperCase()}`,
+    `${hierarchy}
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:20px;">
+      <div class="section" style="padding-left:0; border-right:1px solid var(--border); padding-right:15px">
+        <h4 style="font-size:10px; color:var(--muted); text-transform:uppercase; margin-bottom:12px;">Serviços (ISS/LC 116)</h4>
         ${issHtml}
       </div>
-      <div class="ncm-col" style="border-right:none">
-        <div class="ncm-col-title"><span class="dot-orange" style="width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:5px;"></span>Simples Nacional</div>
+      <div class="section" style="padding-left:0">
+        <h4 style="font-size:10px; color:var(--muted); text-transform:uppercase; margin-bottom:12px;">Simples Nacional</h4>
         ${simplesHtml}
       </div>
     </div>
-    <div class="section" style="padding-left:0">
-      <div class="ncm-col-title"><span style="width:7px;height:7px;border-radius:50%;background:var(--blue);display:inline-block;margin-right:5px;"></span>NBS Relacionados</div>
-      ${nbsHtml}
+    <div style="margin-top:20px; border-top:1px solid var(--border); padding-top:15px">
+      ${relatedHtml}
     </div>
-    ${comparisonHtml}
     <div style="margin-top:20px; padding-top:10px; border-top:1px dashed var(--border); font-size:10px; color:var(--muted); display:flex; justify-content:space-between;">
-      <span>Fonte: CONCLA (IBGE) / Simples Nacional</span>
-      <span>Base v.2024</span>
+      <span>Fonte: CONCLA / Receita Federal</span>
+      <span>Base: CNAE 2.3 / Simples Nac. 2024</span>
     </div>`);
-
-  // Update simples value in comparison if available
-  const simplesValDisplay = document.getElementById('tax-simples-val');
-  if (simplesValDisplay && simplesList.length) {
-    simplesValDisplay.innerText = `${simplesList[0].aliquota}%`;
-  }
 
   setSeo('cnae', item.cnae, item.descCnae);
   pushRoute('cnae', item.cnae);
 }
 
 async function runGlobalSearch(value) {
-  // Busca inteligente: Remove pontos, traços, barras e espaços
   const query = String(value || '').replace(/[.\-/ ]/g, '').trim();
   if (!query) {
     result.innerHTML = '';
     return;
   }
 
-  // Se digitar um código exato, renderiza direto o card de detalhe
   const type = detectSearchType(query);
-  if (type === 'ncm' && query.length >= 8) return renderNcm(query);
+  if (type === 'ncm' && query.length >= 8) {
+    result.style.opacity = '1';
+    return renderNcm(query);
+  }
   if (type === 'cnae' && query.length >= 7) {
     const items = searchCnaeByCode(query);
-    if (items[0]) return renderCnae(items[0]);
+    if (items[0]) {
+      result.style.opacity = '1';
+      return renderCnae(items[0]);
+    }
   }
 
-  result.innerHTML = '<div class="ncm-status"><span class="ncm-spin"></span>Buscando em bases oficiais...</div>';
+  // Busca por Texto / Semântica
+  const localCnae = searchCnaeByKeyword(query);
+  const localNcm = await searchNcmByKeyword(query);
 
-  // Realiza as buscas paralelas em NCM e CNAE (Keyword)
-  const [ncm, cnae] = await Promise.all([
-    searchNcmByKeyword(query),
-    Promise.resolve(searchCnaeByKeyword(query))
-  ]);
-
-  const blocks = [];
-
-  // 1. Mostra primeiro os resultados exatos ou parciais encontrados nas bases locais
-  if (ncm.length) {
-    ncm.slice(0, 3).forEach(x => {
-      blocks.push(renderResultCard(`NCM ${formatNcm(x.codigo)}`, `<div class="ncm-desc">${x.descricao}</div><button class="ncm-ac-item" style="border:1px solid var(--border);margin-top:8px;padding:4px 10px;border-radius:4px" onclick="window.runGlobalSearch('${x.codigo}')">Ver detalhes</button>`));
+  if (!localCnae.length && !localNcm.length) {
+    result.innerHTML = '<div class="ncm-empty">Buscando inteligência avançada para "' + query + '"...</div>';
+  } else {
+    result.innerHTML = '<div class="ncm-results-header" style="font-size:11px; color:var(--muted); margin-bottom:15px; border-bottom:1px solid var(--border); padding-bottom:8px">Resultados Oficiais (CNAE/NCM)</div>';
+    localCnae.slice(0, 5).forEach((item) => {
+      const div = document.createElement('div');
+      div.className = 'ncm-ac-item';
+      div.style.marginBottom = '8px';
+      div.innerHTML = `<span class="ncm-ac-code" style="color:var(--green)">CNAE ${formatCnae(item.cnae)}</span><span class="ncm-ac-desc">${item.descCnae}</span>`;
+      div.onclick = () => renderCnae(item);
+      result.appendChild(div);
+    });
+    localNcm.slice(0, 5).forEach((item) => {
+      const div = document.createElement('div');
+      div.className = 'ncm-ac-item';
+      div.style.marginBottom = '8px';
+      div.innerHTML = `<span class="ncm-ac-code">NCM ${formatNcm(item.codigo)}</span><span class="ncm-ac-desc">${item.descricao}</span>`;
+      div.onclick = () => renderNcm(item.codigo);
+      result.appendChild(div);
     });
   }
-  if (cnae.length) {
-    cnae.slice(0, 3).forEach(x => {
-      blocks.push(renderResultCard(`CNAE ${formatCnae(x.cnae)}`, `<div class="ncm-desc">${x.descCnae}</div><button class="ncm-ac-item" style="border:1px solid var(--border);margin-top:8px;padding:4px 10px;border-radius:4px" onclick="window.runGlobalSearch('${x.cnae}')">Ver detalhes</button>`));
-    });
-  }
 
-  // 2. Se for uma busca por texto, chamamos a IA por último para complementar
-  if (type === 'text' && query.length > 3) {
-    // Adicionamos um placeholder enquanto a IA pensa
-    const aiPlaceholderId = `ai-loading-${Date.now()}`;
-    const aiContainer = document.createElement('div');
-    aiContainer.id = aiPlaceholderId;
-    aiContainer.innerHTML = '<div class="ncm-status"><span class="ncm-spin"></span>A IA está interpretando sua atividade...</div>';
+  if (query.length > 3) {
+    const aiLoading = document.createElement('div');
+    aiLoading.id = 'ai-loading';
+    aiLoading.innerHTML = '<div class="ncm-status"><span class="ncm-spin"></span>Consultando Interpretador de Atividades (IA)...</div>';
+    result.appendChild(aiLoading);
 
-    // Atualiza o HTML inicial com resultados locais
-    result.innerHTML = blocks.length ? blocks.join('') : '';
-    result.appendChild(aiContainer);
+    try {
+      const suggestions = await interpretActivity(query);
+      if (aiLoading) aiLoading.remove();
 
-    // Busca assíncrona da IA
-    interpretActivity(query).then(aiSuggestions => {
-      const container = document.getElementById(aiPlaceholderId);
-      if (!container) return;
+      if (suggestions && suggestions.length > 0) {
+        const aiHeader = document.createElement('div');
+        aiHeader.innerHTML = '<div class="ncm-results-header" style="font-size:11px; color:var(--violet-hi); margin:20px 0 10px; border-bottom:1px solid var(--violet-lo); padding-bottom:8px; display:flex; align-items:center; gap:8px"><span class="ai-badge" style="background:var(--violet); color:#000; padding:2px 6px; border-radius:3px; font-weight:bold">IA</span> Sugestões Interpretadas</div>';
+        result.appendChild(aiHeader);
 
-      if (aiSuggestions && aiSuggestions.length > 0) {
-        const aiBlocks = aiSuggestions.map(s => {
-          const localData = searchCnaeByCode(s.cnae)[0];
-          const title = localData ? `CNAE ${formatCnae(s.cnae)} — ${localData.descCnae}` : `CNAE ${formatCnae(s.cnae)}`;
-          return renderResultCard(`<span style="display:inline-flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="var(--violet-hi)"><path d="M12 2L14.4 9L22 9.2L16 14L18.5 21L12 17L5.5 21L8 14L2 9.2L9.6 9L12 2Z"/></svg> Sugestão IA</span>`,
-            `<div style="font-weight:600;margin-bottom:8px;font-size:14px">${title}</div>
-             <div style="font-size:12px;color:var(--muted);background:rgba(139, 92, 246, 0.05);padding:10px;border-radius:6px;border-left:3px solid var(--violet-hi)">
-              <strong>Por que?</strong> ${s.motivo}
-             </div>
-             <button class="ncm-ac-item" style="border:1px solid var(--border);margin-top:12px;padding:6px 14px;border-radius:4px;cursor:pointer" onclick="window.runGlobalSearch('${s.cnae}')">Ver Detalhes Fiscais</button>`
-          );
+        suggestions.forEach(s => {
+          const item = searchCnaeByCode(s.codigo)[0];
+          if (item) {
+            const div = document.createElement('div');
+            div.className = 'ncm-ac-item';
+            div.style.borderLeft = '2px solid var(--violet)';
+            div.style.background = 'rgba(139, 92, 246, 0.05)';
+            div.style.marginBottom = '10px';
+            div.innerHTML = `
+              <div style="flex:1">
+                <div style="display:flex; justify-content:space-between">
+                  <span class="ncm-ac-code" style="color:var(--violet-hi)">CNAE ${formatCnae(item.cnae)}</span>
+                  <span style="font-size:9px; color:var(--violet-hi); background:rgba(139,92,246,0.1); padding:1px 4px; border-radius:2px">Confiança: ${s.confianca}%</span>
+                </div>
+                <div class="ncm-ac-desc" style="white-space:normal; font-weight:bold; color:var(--text)">${item.descCnae}</div>
+                <div style="font-size:10px; color:var(--muted); margin-top:4px; font-style:italic"><strong>Por que?</strong> ${s.justificativa}</div>
+              </div>
+            `;
+            div.onclick = () => renderCnae(item);
+            result.appendChild(div);
+          }
         });
-
-        container.innerHTML = `<div style="margin-top:30px; margin-bottom:30px; border:1px solid var(--violet-lo); border-radius:8px; padding:15px; background:rgba(139, 92, 246, 0.02)">
-          <h3 style="font-size:13px; color:var(--violet-hi); margin-bottom:15px; text-transform:uppercase; letter-spacing:0.05em">Sugestões de Inteligência Artificial</h3>
-          ${aiBlocks.join('')}
-        </div>`;
-      } else {
-        container.remove();
-        if (blocks.length === 0) {
-          result.innerHTML = '<div class="ncm-empty">Nenhum resultado encontrado para "' + query + '".</div>';
-        }
       }
-    });
-
-    return; // O processamento continua no .then() acima
+    } catch (e) {
+      console.error("AI Error:", e);
+      if (aiLoading) aiLoading.remove();
+    }
   }
-
-  result.innerHTML = blocks.length ? blocks.join('') : '<div class="ncm-empty">Nenhum resultado encontrado para "' + query + '".</div>';
 }
 window.runGlobalSearch = runGlobalSearch;
 
 let acTimer;
 input.addEventListener('input', () => {
+  const v = input.value.trim();
+  const digits = onlyDigits(v);
+
+  // Regra de Usabilidade: Se o usuário digitou ou colou um código completo, abre direto
+  if (digits.length === 8 || digits.length === 7) {
+    clearTimeout(acTimer);
+    ac.style.display = 'none';
+    runGlobalSearch(v);
+    return;
+  }
+
   clearTimeout(acTimer);
   acTimer = setTimeout(async () => {
     const q = input.value.trim();
