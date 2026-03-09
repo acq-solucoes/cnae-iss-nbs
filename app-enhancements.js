@@ -366,3 +366,43 @@ clearBtn.addEventListener('click', () => {
   input.value = match[2];
   runGlobalSearch(match[2]);
 })();
+
+// PWA Installation Logic
+let deferredPrompt;
+const installBanner = document.getElementById('install-banner');
+const btnInstall = document.getElementById('btn-install');
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  // Previne que o mini-infobar padrão apareça em dispositivos móveis
+  e.preventDefault();
+  // Guarda o evento para ser disparado depois
+  deferredPrompt = e;
+  // Mostra o banner customizado
+  if (installBanner) {
+    installBanner.style.display = 'flex';
+  }
+});
+
+if (btnInstall) {
+  btnInstall.addEventListener('click', async () => {
+    if (!deferredPrompt) return;
+    // Mostra o prompt nativo
+    deferredPrompt.prompt();
+    // Espera a resposta do usuário
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`User Choice: ${outcome}`);
+    // Limpa o prompt
+    deferredPrompt = null;
+    // Esconde o banner
+    if (installBanner) {
+      installBanner.style.display = 'none';
+    }
+  });
+}
+
+window.addEventListener('appinstalled', () => {
+  console.log('PWA was installed');
+  if (installBanner) {
+    installBanner.style.display = 'none';
+  }
+});
