@@ -7,6 +7,7 @@ import { renderSearchBox } from './components/SearchBox.js';
 import { renderResultCard } from './components/ResultCard.js';
 import { renderHierarchyView } from './components/HierarchyView.js';
 import { renderRelatedItems } from './components/RelatedItems.js';
+import { interpretActivity } from './services/openaiService.js';
 
 const hero = document.querySelector('.wrap');
 const tabBar = document.querySelector('.tab-bar');
@@ -214,17 +215,26 @@ async function runGlobalSearch(value) {
     result.innerHTML = '';
     return;
   }
+
+  // Se digitar um código exato, renderiza direto o card de detalhe
   const type = detectSearchType(query);
-  if (type === 'ncm') return renderNcm(query);
-  if (type === 'cnae') {
+  if (type === 'ncm' && query.length >= 8) return renderNcm(query);
+  if (type === 'cnae' && query.length >= 7) {
     const items = searchCnaeByCode(query);
     if (items[0]) return renderCnae(items[0]);
   }
 
-  result.innerHTML = '<div class="ncm-status"><span class="ncm-spin"></span>Buscando em NCM e CNAE...</div>';
-  const [ncm, cnae] = await Promise.all([searchNcmByKeyword(query), Promise.resolve(searchCnaeByKeyword(query))]);
+  result.innerHTML = '<div class="ncm-status"><span class="ncm-spin"></span>Buscando em bases oficiais...</div>';
+
+  // Realiza as buscas paralelas em NCM e CNAE (Keyword)
+  const [ncm, cnae] = await Promise.all([
+    searchNcmByKeyword(query),
+    Promise.resolve(searchCnaeByKeyword(query))
+  ]);
 
   const blocks = [];
+
+  // 1. Mostra primeiro os resultados exatos ou parciais encontrados nas bases locais
   if (ncm.length) {
     ncm.slice(0, 3).forEach(x => {
       blocks.push(renderResultCard(`NCM ${formatNcm(x.codigo)}`, `<div class="ncm-desc">${x.descricao}</div><button class="ncm-ac-item" style="border:1px solid var(--border);margin-top:8px;padding:4px 10px;border-radius:4px" onclick="window.runGlobalSearch('${x.codigo}')">Ver detalhes</button>`));
@@ -236,6 +246,51 @@ async function runGlobalSearch(value) {
     });
   }
 
+  // 2. Se for uma busca por texto, chamamos a IA por último para complementar
+  if (type === 'text' && query.length > 3) {
+    // Adicionamos um placeholder enquanto a IA pensa
+    const aiPlaceholderId = `ai-loading-${Date.now()}`;
+    const aiContainer = document.createElement('div');
+    aiContainer.id = aiPlaceholderId;
+    aiContainer.innerHTML = '<div class="ncm-status"><span class="ncm-spin"></span>A IA está interpretando sua atividade...</div>';
+
+    // Atualiza o HTML inicial com resultados locais
+    result.innerHTML = blocks.length ? blocks.join('') : '';
+    result.appendChild(aiContainer);
+
+    // Busca assíncrona da IA
+    interpretActivity(query).then(aiSuggestions => {
+      const container = document.getElementById(aiPlaceholderId);
+      if (!container) return;
+
+      if (aiSuggestions && aiSuggestions.length > 0) {
+        const aiBlocks = aiSuggestions.map(s => {
+          const localData = searchCnaeByCode(s.cnae)[0];
+          const title = localData ? `CNAE ${formatCnae(s.cnae)} — ${localData.descCnae}` : `CNAE ${formatCnae(s.cnae)}`;
+          return renderResultCard(`<span style="display:inline-flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="var(--violet-hi)"><path d="M12 2L14.4 9L22 9.2L16 14L18.5 21L12 17L5.5 21L8 14L2 9.2L9.6 9L12 2Z"/></svg> Sugestão IA</span>`,
+            `<div style="font-weight:600;margin-bottom:8px;font-size:14px">${title}</div>
+             <div style="font-size:12px;color:var(--muted);background:rgba(139, 92, 246, 0.05);padding:10px;border-radius:6px;border-left:3px solid var(--violet-hi)">
+              <strong>Por que?</strong> ${s.motivo}
+             </div>
+             <button class="ncm-ac-item" style="border:1px solid var(--border);margin-top:12px;padding:6px 14px;border-radius:4px;cursor:pointer" onclick="window.runGlobalSearch('${s.cnae}')">Ver Detalhes Fiscais</button>`
+          );
+        });
+
+        container.innerHTML = `<div style="margin-top:30px; margin-bottom:30px; border:1px solid var(--violet-lo); border-radius:8px; padding:15px; background:rgba(139, 92, 246, 0.02)">
+          <h3 style="font-size:13px; color:var(--violet-hi); margin-bottom:15px; text-transform:uppercase; letter-spacing:0.05em">Sugestões de Inteligência Artificial</h3>
+          ${aiBlocks.join('')}
+        </div>`;
+      } else {
+        container.remove();
+        if (blocks.length === 0) {
+          result.innerHTML = '<div class="ncm-empty">Nenhum resultado encontrado para "' + query + '".</div>';
+        }
+      }
+    });
+
+    return; // O processamento continua no .then() acima
+  }
+
   result.innerHTML = blocks.length ? blocks.join('') : '<div class="ncm-empty">Nenhum resultado encontrado para "' + query + '".</div>';
 }
 window.runGlobalSearch = runGlobalSearch;
@@ -245,7 +300,11 @@ input.addEventListener('input', () => {
   clearTimeout(acTimer);
   acTimer = setTimeout(async () => {
     const q = input.value.trim();
-    runGlobalSearch(q);
+    if (!q) {
+      result.innerHTML = '';
+      ac.style.display = 'none';
+      return;
+    }
     const [ncm, cnae] = await Promise.all([autocompleteNcm(q), Promise.resolve(autocompleteCnae(q))]);
     const merged = [...cnae.map((x) => ({ label: `CNAE ${formatCnae(x.cnae)}`, value: x.cnae })), ...ncm.map((x) => ({ label: `NCM ${formatNcm(x.codigo)}`, value: x.codigo }))].slice(0, 8);
     if (!merged.length) {
