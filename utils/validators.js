@@ -6,8 +6,8 @@ export function detectSearchType(value = '') {
   const raw = String(value).trim();
   const digits = onlyDigits(raw);
 
-  if (digits.length === 8 && raw === digits) return 'ncm';
-  if (digits.length === 7 && raw === digits) return 'cnae';
+  if (digits.length === 8) return 'ncm';
+  if (digits.length === 7) return 'cnae';
   return 'keyword';
 }
 
